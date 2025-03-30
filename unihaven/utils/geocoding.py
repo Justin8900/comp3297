@@ -13,5 +13,5 @@ def geocode_address(address):
     """
     # TO BE IMPLEMENTED: API call to geocoding service
     # For now, return None values to indicate geocoding hasn't been done
-    return None, None, None 
-    # return 22.28308, 2114.13544, "3199616023T20050430"
+    # return None, None, None 
+    return 29.245378, 2199.13454, "33897616023T20059876"
