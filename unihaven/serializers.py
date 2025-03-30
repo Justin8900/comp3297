@@ -34,9 +34,11 @@ class AccommodationSerializer(serializers.ModelSerializer):
     beds = serializers.IntegerField(min_value=0, label="Number of beds (must be 0 or greater)")
     bedrooms = serializers.IntegerField(min_value=0, label="Number of bedrooms (must be 0 or greater)")
     rating = serializers.IntegerField(min_value=0, max_value=5, label="Rating (between 0 and 5)")
-    daily_price = serializers.IntegerField(
-        min_value=1,
-        label="Daily price in whole numbers (positive integer)"
+    daily_price = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal('0.01'),
+        label="Daily price (positive amount)"
     )
     
     # Make geocoding fields read-only since they'll be auto-populated
