@@ -190,7 +190,7 @@ def search_accommodations(request):
     """
     Search for accommodations based on query parameters.
     """
-    print("Search function reached")  #
+    print("Search function reached")   
     query = Accommodation.objects.all()
    
     # Extract search parameters from GET request
@@ -202,7 +202,7 @@ def search_accommodations(request):
     date_from = request.GET.get('available_from')
     date_until = request.GET.get('available_until')
     distance_from = request.GET.get('distance_from')  # Building name
-
+    
     # Apply filters if parameters are provided
     if accommodation_type:
         query = query.filter(type=accommodation_type)
