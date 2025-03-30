@@ -3,12 +3,12 @@ from django.views.generic import ListView
 from django.db.models import Q
 from rest_framework import viewsets, status, filters
 from rest_framework.response import Response
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view
 from datetime import datetime
 from .models import *
 from .serializers import *
 from .utils.geocoding import geocode_address
-
+import math
 # Create your views here.
 
 # API Views
@@ -20,8 +20,6 @@ class AccommodationViewSet(viewsets.ModelViewSet):
     queryset = Accommodation.objects.all().select_related('owner')
     serializer_class = AccommodationSerializer
     filter_backends = [filters.OrderingFilter]
-    # filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['address', 'geo_address', 'type']
     ordering_fields = ['daily_price', 'rating', 'beds', 'bedrooms', 'available_from', 'available_until']
     
     def get_queryset(self):
@@ -101,3 +99,88 @@ class CEDARSSpecialistViewSet(viewsets.ModelViewSet):
     queryset = CEDARSSpecialist.objects.all()
     serializer_class = CEDARSSpecialistSerializer
 
+@api_view(['GET'])
+def search_accommodations(request):
+    """
+    Search for accommodations based on query parameters.
+    """
+    print("Search function reached")  #
+    query = Accommodation.objects.all()
+   
+    # Extract search parameters from GET request
+    accommodation_type = request.GET.get('type')
+    min_beds = request.GET.get('min_beds')
+    min_bedrooms = request.GET.get('min_bedrooms')
+    min_rating = request.GET.get('min_rating')
+    max_price = request.GET.get('max_price')
+    date_from = request.GET.get('available_from')
+    date_until = request.GET.get('available_until')
+    distance_from = request.GET.get('distance_from')  # Building name
+
+    # Apply filters if parameters are provided
+    if accommodation_type:
+        query = query.filter(type=accommodation_type)
+    
+    if date_from:
+        query = query.filter(available_from__gte=datetime.strptime(date_from, "%Y-%m-%d"))
+
+    if date_until:
+            query = query.filter(available_until__lte=datetime.strptime(date_until, "%Y-%m-%d"))
+
+    if min_beds:
+        query = query.filter(beds__gte=int(min_beds))
+    
+    if min_bedrooms:
+        query = query.filter(bedrooms__gte= int(min_bedrooms))
+    
+    if min_rating:
+        query = query.filter(rating__gte=int(min_rating))
+
+    if max_price:
+        query = query.filter(daily_price__lte=Decimal(max_price))
+
+    # Distance Calculation using Equirectangular approximation
+    R = 6371 
+
+    if distance_from:
+        # Get latitude and longitude for the given building name
+        reference_lat, reference_lon, _ = geocode_address(distance_from)
+
+        if reference_lat is not None and reference_lon is not None:
+            accommodations_with_distance = []
+            for accommodation in query:
+                if accommodation.latitude is None or accommodation.longitude is None:
+                    continue  
+
+                lat1, lon1 = math.radians(reference_lat), math.radians(reference_lon)
+                lat2, lon2 = math.radians(accommodation.latitude), math.radians(accommodation.longitude)
+                x = (lon2 - lon1) * math.cos((lat1 + lat2) / 2)
+                y = (lat2 - lat1)
+                d = math.sqrt(x*x + y*y) * R  # Distance in km
+                accommodations_with_distance.append((d, accommodation))
+
+            # Sort accommodations by increasing distance
+            accommodations_with_distance.sort(key=lambda item: item[0])
+            
+            # Convert results to JSON response with distance included
+            results = [
+                {
+                    'id': acc.id,
+                    'type': acc.type,
+                    'address': acc.address,
+                    'beds': acc.beds,
+                    'bedrooms': acc.bedrooms,
+                    'rating': acc.rating,
+                    'daily_price': acc.daily_price,
+                    'available_from': acc.available_from,
+                    'available_until': acc.available_until,
+                    'distance_km': round(d, 2),
+                }
+                for d, acc in accommodations_with_distance
+            ]
+        else:
+            results = {"error": "Invalid location specified"}
+    else:
+        results =list(query.values('id', 'type', 'address', 'beds', 'bedrooms', 'rating', 'daily_price', 'available_from', 'available_until'))
+    
+    return Response(results)

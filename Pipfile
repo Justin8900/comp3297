@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 django = "~=5.1"
 djangorestframework = "*"
+drf-yasg = "*"
 
 [dev-packages]
 

@@ -26,7 +26,7 @@ class Accommodation(models.Model):
     available_until = models.DateField()
     beds = models.IntegerField()
     bedrooms = models.IntegerField()
-    rating = models.FloatField()
+    rating = models.IntegerField()
     daily_price = models.DecimalField(max_digits=10, decimal_places=2)
     owner = models.ForeignKey(PropertyOwner, on_delete=models.CASCADE, related_name="accommodations")
 
