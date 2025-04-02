@@ -6,10 +6,10 @@ It uses Django REST Framework's DefaultRouter to automatically generate URL patt
 for the ViewSets defined in views.py.
 
 The following endpoints are available:
-- /api/property-owners/: CRUD operations for property owners
-- /api/accommodations/: CRUD operations and search for accommodations
-- /api/hku-members/: CRUD operations for HKU members
-- /api/cedars-specialists/: CRUD operations for CEDARS specialists
+- /property-owners/: CRUD operations for property owners
+- /accommodations/: CRUD operations and search for accommodations
+- /hku-members/: CRUD operations for HKU members
+- /cedars-specialists/: CRUD operations for CEDARS specialists
 
 Each endpoint supports standard REST operations:
 - GET: List and retrieve

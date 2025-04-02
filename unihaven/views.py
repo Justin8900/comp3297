@@ -118,11 +118,12 @@ class AccommodationViewSet(viewsets.ModelViewSet):
         available_until = request.GET.get('available_until')
         distance_from = request.GET.get('distance_from')  # Building name
         selected = {
-        "Main Campus": (22.28405, 114.13784),
-        "Sassoon Road Campus": (22.2675, 114.12881),
-        "Swire Institute of Marine Science": (22.20805, 114.26021),
-        "Kadoorie Centre": (22.43022, 114.11429),
-        "Faculty of Dentistry": (22.28649, 114.14426),}
+            "Main Campus": (22.28405, 114.13784),
+            "Sassoon Road Campus": (22.2675, 114.12881),
+            "Swire Institute of Marine Science": (22.20805, 114.26021),
+            "Kadoorie Centre": (22.43022, 114.11429),
+            "Faculty of Dentistry": (22.28649, 114.14426),
+        }
         R = 6371 
 
         if accommodation_type:
