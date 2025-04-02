@@ -82,7 +82,7 @@ pip install django~=5.1.7
      * Format: YYYY-MM-DD
      * Example: ?available_until=2024-12-31
    
-   - distance_from: Sort results by distance from a specific HKU building
+   - distance_from: Sort results by distance from a specific HKU building (automatically sorted from closest to farthest)
      * Values (must use exact names):
        * Main Campus
        * Sassoon Road Campus
@@ -90,7 +90,7 @@ pip install django~=5.1.7
        * Kadoorie Centre
        * Faculty of Dentistry
      * Example: ?distance_from=Main%20Campus
-     * Note: When using distance_from, results include a distance_km field
+     * Note: When using distance_from, results include a distance_km field and are automatically sorted by distance (ascending order, closest first)
    
    Example Combinations:
    1. Find apartments with at least 2 beds under $150/day near Main Campus:
