@@ -13,16 +13,45 @@ import math
 
 # API Views
 class PropertyOwnerViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing property owners.
+    Provides CRUD operations for PropertyOwner model.
+    """
     queryset = PropertyOwner.objects.all()
     serializer_class = PropertyOwnerSerializer
 
 class AccommodationViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing accommodations.
+    Provides CRUD operations and search functionality for Accommodation model.
+    
+    Features:
+    - Filtering by type, price, rating, beds, bedrooms, availability
+    - Geocoding of addresses
+    - Distance-based search from HKU locations
+    - Custom search endpoint
+    """
     queryset = Accommodation.objects.all().select_related('owner')
     serializer_class = AccommodationSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['daily_price', 'rating', 'beds', 'bedrooms', 'available_from', 'available_until']
     
     def get_queryset(self):
+        """
+        Get filtered queryset based on query parameters.
+        
+        Available filters:
+        - type: Filter by accommodation type
+        - owner_id: Filter by property owner
+        - available_now: Filter currently available accommodations
+        - min_price/max_price: Filter by price range
+        - min_rating: Filter by minimum rating
+        - min_beds: Filter by minimum number of beds
+        - address_contains: Filter by address text
+        
+        Returns:
+            QuerySet: Filtered queryset of accommodations
+        """
         queryset = super().get_queryset()
         
         # Apply filters based on query parameters
@@ -59,6 +88,22 @@ class AccommodationViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'], url_path='search')
     def search(self, request):
+        """
+        Custom search endpoint for accommodations with advanced filtering.
+        
+        Query Parameters:
+        - type: Filter by accommodation type
+        - min_beds/exact_beds: Filter by number of beds (minimum or exact)
+        - min_bedrooms/exact_bedrooms: Filter by number of bedrooms (minimum or exact)
+        - min_rating/exact_rating: Filter by rating (minimum or exact)
+        - max_price: Filter by maximum price
+        - available_from: Filter by availability start date
+        - available_until: Filter by availability end date
+        - distance_from: Calculate distances from specified HKU location or address
+        
+        Returns:
+            Response: JSON response containing filtered accommodations with optional distance calculations
+        """
         print("Search function reached")   
         query = Accommodation.objects.all()
         accommodation_type = request.GET.get('type')
@@ -151,6 +196,15 @@ class AccommodationViewSet(viewsets.ModelViewSet):
         return Response(results)
     
     def perform_create(self, serializer):
+        """
+        Create a new accommodation and geocode its address.
+        
+        Args:
+            serializer: The serializer instance containing the accommodation data
+            
+        Returns:
+            Accommodation: The created accommodation instance with geocoded coordinates
+        """
         # First save the accommodation with the provided data
         accommodation = serializer.save()
         
@@ -166,6 +220,15 @@ class AccommodationViewSet(viewsets.ModelViewSet):
         return accommodation
         
     def perform_update(self, serializer):
+        """
+        Update an accommodation and geocode its address if changed.
+        
+        Args:
+            serializer: The serializer instance containing the updated accommodation data
+            
+        Returns:
+            Accommodation: The updated accommodation instance with geocoded coordinates
+        """
         # Check if address has changed
         if serializer.instance.address != serializer.validated_data.get('address', serializer.instance.address):
             # Save first to update the address
@@ -185,18 +248,37 @@ class AccommodationViewSet(viewsets.ModelViewSet):
         return accommodation
 
 class HKUMemberViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing HKU members.
+    Provides CRUD operations for HKUMember model.
+    """
     queryset = HKUMember.objects.all()
     serializer_class = HKUMemberSerializer
 
 class CEDARSSpecialistViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing CEDARS specialists.
+    Provides CRUD operations for CEDARSSpecialist model.
+    """
     queryset = CEDARSSpecialist.objects.all()
     serializer_class = CEDARSSpecialistSerializer
 
 @api_view(['GET', 'POST'])
 def add_accommodation(request):
     """
-    Add a new accommodation with a default HTML form.
-    GET method renders the form, POST processes the form submission.
+    API endpoint for adding new accommodations.
+    
+    Methods:
+        GET: Returns an empty serializer for form rendering
+        POST: Creates a new accommodation with geocoded address
+        
+    Args:
+        request: The HTTP request object
+        
+    Returns:
+        Response: 
+            - GET: Empty serializer data
+            - POST: Created accommodation data or validation errors
     """
     if request.method == 'POST':
         serializer = AccommodationSerializer(data=request.data)

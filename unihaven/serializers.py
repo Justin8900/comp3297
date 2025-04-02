@@ -3,11 +3,48 @@ from decimal import Decimal
 from .models import PropertyOwner, Accommodation, HKUMember, CEDARSSpecialist
 
 class PropertyOwnerSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the PropertyOwner model.
+    
+    Handles serialization and deserialization of PropertyOwner objects.
+    
+    Fields:
+        id (int): Unique identifier
+        name (str): Name of the property owner
+        contact_info (str): Contact information
+    """
     class Meta:
         model = PropertyOwner
         fields = ['id', 'name', 'contact_info']
 
 class AccommodationSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the Accommodation model.
+    
+    Provides comprehensive serialization for accommodation listings with support for:
+    - Creating/updating accommodations
+    - Handling property owner relationships
+    - Validating dates and numeric fields
+    - Automatic geocoding of addresses
+    
+    Fields:
+        id (int): Unique identifier (read-only)
+        type (str): Type of accommodation
+        address (str): Physical address
+        latitude (float): Latitude coordinate (read-only, auto-populated)
+        longitude (float): Longitude coordinate (read-only, auto-populated)
+        geo_address (str): Geocoded address (read-only, auto-populated)
+        available_from (date): Start date of availability
+        available_until (date): End date of availability
+        beds (int): Number of beds (min: 0)
+        bedrooms (int): Number of bedrooms (min: 0)
+        rating (int): Rating (0-5)
+        daily_price (Decimal): Price per day (min: 0.01)
+        owner (PropertyOwnerSerializer): Nested serializer for owner details
+        owner_id (int): ID for selecting existing owner (write-only)
+        owner_name (str): Name for creating new owner (write-only)
+        owner_contact (str): Contact info for creating new owner (write-only)
+    """
     owner = PropertyOwnerSerializer(read_only=True)
     owner_id = serializers.PrimaryKeyRelatedField(
         queryset=PropertyOwner.objects.all(),
@@ -56,6 +93,23 @@ class AccommodationSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
     
     def validate(self, data):
+        """
+        Validate the accommodation data.
+        
+        Performs the following validations:
+        1. Checks that available_until date is after available_from date
+        2. Ensures either owner_id or both owner_name and owner_contact are provided
+        3. Creates a new owner if owner_name and owner_contact are provided without owner_id
+        
+        Args:
+            data (dict): The data to validate
+            
+        Returns:
+            dict: The validated data
+            
+        Raises:
+            ValidationError: If validation fails
+        """
         # Validate that available_until is after available_from
         if 'available_from' in data and 'available_until' in data:
             if data['available_until'] <= data['available_from']:
@@ -81,11 +135,29 @@ class AccommodationSerializer(serializers.ModelSerializer):
         return data
 
 class HKUMemberSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the HKUMember model.
+    
+    Handles serialization and deserialization of HKU member objects.
+    
+    Fields:
+        uid (str): Unique identifier (primary key)
+        name (str): Name of the HKU member
+    """
     class Meta:
         model = HKUMember
         fields = ['uid', 'name']
 
 class CEDARSSpecialistSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the CEDARSSpecialist model.
+    
+    Handles serialization and deserialization of CEDARS specialist objects.
+    
+    Fields:
+        id (int): Unique identifier
+        name (str): Name of the CEDARS specialist
+    """
     class Meta:
         model = CEDARSSpecialist
         fields = ['id', 'name'] 

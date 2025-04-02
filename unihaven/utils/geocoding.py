@@ -1,3 +1,21 @@
+"""
+Geocoding utility module for the UniHaven application.
+
+This module provides functionality to convert Hong Kong addresses to geographic coordinates
+using the Hong Kong Government's Address Lookup Service (ALS) API.
+
+The module handles:
+- Address encoding and API request formatting
+- Error handling and logging
+- Response parsing and validation
+- Coordinate extraction and formatting
+
+Dependencies:
+    - requests: For making HTTP requests to the ALS API
+    - urllib.parse: For URL encoding of addresses
+    - logging: For error and warning logging
+"""
+
 import requests
 from urllib.parse import quote
 import logging
