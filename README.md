@@ -93,9 +93,9 @@ pip install django~=5.1.7
      * Note: When using distance_from, results include a distance_km field and are automatically sorted by distance (ascending order, closest first)
    
    Example Combinations:
-   1. Find apartments with at least 2 beds under $150/day near Main Campus:
+   1. Find apartments with at least 2 beds under $1500/day near Main Campus:
       ```
-      /accommodations/search/?type=apartment&min_beds=2&max_price=150.00&distance_from=Main%20Campus
+      /accommodations/search/?type=apartment&min_beds=2&max_price=1500.00&distance_from=Main%20Campus
       ```
    
    2. Find highly-rated (4+) accommodations available from April to December:
@@ -118,7 +118,7 @@ pip install django~=5.1.7
        "beds": 2,
        "bedrooms": 1,
        "rating": 4,
-       "daily_price": "100.00",
+       "daily_price": "1000.00",
        "available_from": "2024-04-02",
        "available_until": "2024-12-31",
        "distance_km": 5.52  // Only included when using distance_from
