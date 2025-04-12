@@ -28,6 +28,9 @@ db.sqlite3.backup  # Keep backup files excluded from git
 db.sqlite3-journal
 media/
 
+# Ensure backup database is not committed
+**/db.sqlite3.backup
+
 # Static files
 /static/
 /staticfiles/
