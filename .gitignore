@@ -23,7 +23,7 @@ wheels/
 # Django
 *.log
 local_settings.py
-# db.sqlite3  # Commented out to allow database with fake data to be pushed
+db.sqlite3  # Prevent future database pushes
 db.sqlite3.backup  # Keep backup files excluded from git
 db.sqlite3-journal
 media/
