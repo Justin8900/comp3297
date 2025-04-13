@@ -3,6 +3,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib.auth.models import User
 from unihaven.utils.notifications import send_reservation_confirmation, send_reservation_update
 import logging
+from django.dispatch import receiver
 
 # Create your models here.
 
