@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 from unihaven.utils.notifications import send_reservation_confirmation, send_reservation_update
 import logging
 from django.dispatch import receiver
+from django.db.models.signals import post_save
 
 # Create your models here.
 
