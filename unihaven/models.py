@@ -340,6 +340,9 @@ class Reservation(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     cancelled_by = models.CharField(max_length=50, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
     
     def __str__(self):
         """
@@ -349,6 +352,55 @@ class Reservation(models.Model):
             str: Description of the reservation
         """
         return f"{self.member} - {self.accommodation} ({self.start_date} to {self.end_date})"
+        
+    def cancel(self, user_type='member'):
+        """
+        Cancel the reservation and send a notification.
+
+        Args:
+            user_type (str): The type of user cancelling the reservation (e.g., 'member' or 'specialist').
+
+        Returns:
+            Reservation: The updated reservation instance.
+        """
+        old_status = self.status
+        self.status = 'cancelled'
+        self.cancelled_by = user_type
+        self.save()
+        send_reservation_update(self, old_status)
+        logger.info(f"Reservation #{self.id} has been cancelled by {user_type}.")
+        return self
+@receiver(post_save, sender=Reservation)
+def handle_reservation_updates(sender, instance, created, **kwargs):
+    """
+    Signal to handle reservation-related notifications and logging.
+
+    Args:
+        sender: The model class that sent the signal.
+        instance: The instance of the model that was saved.
+        created: A boolean indicating if the instance is newly created.
+        kwargs: Additional keyword arguments.
+    """
+    if created: 
+        logger.info(f"New reservation created: {instance.member.name} reserved {instance.accommodation.address} from {instance.start_date} to {instance.end_date}.")
+
+        success = send_reservation_confirmation(instance)
+        if success:
+            logger.info(f"Reservation confirmation email sent for reservation #{instance.id}")
+        else:
+            logger.error(f"Failed to send reservation confirmation email for reservation #{instance.id}")
+
+    elif instance.status == 'cancelled':
+        logger.info(f"Reservation #{instance.id} has been cancelled by {instance.cancelled_by}.")
+        old_status = 'confirmed'
+        
+    
+        success = send_reservation_update(instance, old_status)
+        if success:
+            logger.info(f"Reservation cancellation email sent for reservation #{instance.id}")
+        else:
+            logger.error(f"Failed to send reservation cancellation email for reservation #{instance.id}")
+
 
 class Rating(models.Model):
     """
