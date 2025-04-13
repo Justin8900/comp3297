@@ -3,11 +3,17 @@ from django.views.generic import ListView
 from django.db.models import Q, Avg
 from rest_framework import viewsets, status, filters, permissions
 from rest_framework.response import Response
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes, renderer_classes
+from rest_framework.renderers import TemplateHTMLRenderer, JSONRenderer
 from datetime import datetime
 from decimal import Decimal
 from .models import *
-from .serializers import *
+from .serializers import (
+    PropertyOwnerSerializer, AccommodationSerializer, HKUMemberSerializer,
+    CEDARSSpecialistSerializer, ReservationSerializer, RatingSerializer,
+    ReserveAccommodationSerializer, CancelReservationSerializer, RateAccommodationSerializer,
+    ConfirmReservationSerializer
+)
 from .permissions import *
 from .utils.geocoding import geocode_address
 import math
@@ -383,6 +389,21 @@ class HKUMemberViewSet(viewsets.ModelViewSet):
     queryset = HKUMember.objects.all()
     serializer_class = HKUMemberSerializer
     
+    def get_serializer_class(self):
+        """
+        Return appropriate serializer class based on the action.
+        """
+        if self.action == 'reserve_accommodation':
+            from .serializers import ReserveAccommodationSerializer
+            return ReserveAccommodationSerializer
+        elif self.action == 'cancel_reservation':
+            from .serializers import CancelReservationSerializer
+            return CancelReservationSerializer
+        elif self.action == 'rate_accommodation':
+            from .serializers import RateAccommodationSerializer
+            return RateAccommodationSerializer
+        return super().get_serializer_class()
+    
     def get_permissions(self):
         """
         Since authentication is handled by the CEDARS frontend, 
@@ -424,7 +445,7 @@ class HKUMemberViewSet(viewsets.ModelViewSet):
         serializer = ReservationSerializer(reservations, many=True)
         return Response(serializer.data)
         
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['get', 'post'])
     def reserve_accommodation(self, request, pk=None):
         """
         Reserve an accommodation for a specific HKU member.
@@ -436,6 +457,12 @@ class HKUMemberViewSet(viewsets.ModelViewSet):
         Returns:
             Response: The created reservation or error message
         """
+        # For GET requests, just display the form with correct fields
+        if request.method == 'GET':
+            # Use the serializer to display the correct form fields
+            serializer = self.get_serializer()
+            return Response(serializer.data)
+            
         # Check if HKU member or CEDARS specialist role
         role = request.query_params.get('role', None)
         current_user_id = request.query_params.get('current_user_id', None)
@@ -446,8 +473,8 @@ class HKUMemberViewSet(viewsets.ModelViewSet):
                 {"error": "You don't have permission to make reservations for this member"},
                 status=status.HTTP_403_FORBIDDEN
             )
-            
-        member = self.get_object()
+        
+        # Validate the request data
         accommodation_id = request.data.get('accommodation_id')
         start_date = request.data.get('start_date')
         end_date = request.data.get('end_date')
@@ -457,6 +484,20 @@ class HKUMemberViewSet(viewsets.ModelViewSet):
                 {"error": "accommodation_id, start_date, and end_date are required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
+            
+        # Auto-create the HKU member if they don't exist yet
+        try:
+            member = self.get_object()
+        except Exception:
+            if pk == current_user_id and role == 'hku_member':
+                # Create the member with the provided UID
+                name = request.data.get('member_name', f"HKU Member {pk}")
+                member = HKUMember.objects.create(uid=pk, name=name)
+            else:
+                return Response(
+                    {"error": "HKU member not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
             
         try:
             reservation = member.reserveAccommodation(
@@ -469,7 +510,7 @@ class HKUMemberViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
             
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['get', 'post'])
     def cancel_reservation(self, request, pk=None):
         """
         Cancel a reservation for a specific HKU member.
@@ -481,6 +522,12 @@ class HKUMemberViewSet(viewsets.ModelViewSet):
         Returns:
             Response: The cancelled reservation or error message
         """
+        # For GET requests, just display the form with correct fields
+        if request.method == 'GET':
+            # Use the serializer to display the correct form fields
+            serializer = self.get_serializer()
+            return Response(serializer.data)
+            
         # Check if HKU member or CEDARS specialist role
         role = request.query_params.get('role', None)
         current_user_id = request.query_params.get('current_user_id', None)
@@ -508,7 +555,7 @@ class HKUMemberViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
             
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['get', 'post'])
     def rate_accommodation(self, request, pk=None):
         """
         Rate an accommodation based on a reservation.
@@ -520,6 +567,12 @@ class HKUMemberViewSet(viewsets.ModelViewSet):
         Returns:
             Response: The created rating or error message
         """
+        # For GET requests, just display the form with correct fields
+        if request.method == 'GET':
+            # Use the serializer to display the correct form fields
+            serializer = self.get_serializer()
+            return Response(serializer.data)
+            
         # Check if HKU member role
         role = request.query_params.get('role', None)
         current_user_id = request.query_params.get('current_user_id', None)
@@ -561,6 +614,21 @@ class CEDARSSpecialistViewSet(viewsets.ModelViewSet):
     queryset = CEDARSSpecialist.objects.all()
     serializer_class = CEDARSSpecialistSerializer
     
+    def get_serializer_class(self):
+        """
+        Return appropriate serializer class based on the action.
+        """
+        if self.action == 'add_accommodation':
+            from .serializers import AccommodationSerializer
+            return AccommodationSerializer
+        elif self.action == 'update_accommodation':
+            from .serializers import UpdateAccommodationSerializer
+            return UpdateAccommodationSerializer
+        elif self.action == 'cancel_reservation':
+            from .serializers import CancelReservationSerializer
+            return CancelReservationSerializer
+        return super().get_serializer_class()
+    
     def get_permissions(self):
         """
         Since authentication is handled by the CEDARS frontend, 
@@ -593,7 +661,7 @@ class CEDARSSpecialistViewSet(viewsets.ModelViewSet):
         serializer = AccommodationSerializer(accommodations, many=True)
         return Response(serializer.data)
         
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['get', 'post'])
     def add_accommodation(self, request, pk=None):
         """
         Add a new accommodation managed by this specialist.
@@ -605,6 +673,12 @@ class CEDARSSpecialistViewSet(viewsets.ModelViewSet):
         Returns:
             Response: The created accommodation or error message
         """
+        # For GET requests, just display the form with correct fields
+        if request.method == 'GET':
+            # Use the serializer to display the correct form fields
+            serializer = self.get_serializer()
+            return Response(serializer.data)
+            
         # Check if CEDARS specialist role
         role = request.query_params.get('role', None)
         if role != 'cedars_specialist':
@@ -624,7 +698,7 @@ class CEDARSSpecialistViewSet(viewsets.ModelViewSet):
             return Response(result_serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['get', 'post'])
     def update_accommodation(self, request, pk=None):
         """
         Update an existing accommodation managed by this specialist.
@@ -636,6 +710,12 @@ class CEDARSSpecialistViewSet(viewsets.ModelViewSet):
         Returns:
             Response: The updated accommodation or error message
         """
+        # For GET requests, just display the form with correct fields
+        if request.method == 'GET':
+            # Use the serializer to display the correct form fields
+            serializer = self.get_serializer()
+            return Response(serializer.data)
+            
         # Check if CEDARS specialist role
         role = request.query_params.get('role', None)
         if role != 'cedars_specialist':
@@ -667,7 +747,7 @@ class CEDARSSpecialistViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['get', 'post'])
     def cancel_reservation(self, request, pk=None):
         """
         Cancel a reservation as a CEDARS specialist.
@@ -679,6 +759,12 @@ class CEDARSSpecialistViewSet(viewsets.ModelViewSet):
         Returns:
             Response: The cancelled reservation or error message
         """
+        # For GET requests, just display the form with correct fields
+        if request.method == 'GET':
+            # Use the serializer to display the correct form fields
+            serializer = self.get_serializer()
+            return Response(serializer.data)
+            
         # Check if CEDARS specialist role
         role = request.query_params.get('role', None)
         if role != 'cedars_specialist':
@@ -710,6 +796,15 @@ class ReservationViewSet(viewsets.ModelViewSet):
     """
     queryset = Reservation.objects.all()
     serializer_class = ReservationSerializer
+    
+    def get_serializer_class(self):
+        """
+        Return appropriate serializer class based on the action.
+        """
+        if self.action == 'confirm':
+            from .serializers import ConfirmReservationSerializer
+            return ConfirmReservationSerializer
+        return super().get_serializer_class()
     
     def get_permissions(self):
         """
@@ -757,7 +852,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
             
         return queryset
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['get', 'post'])
     def confirm(self, request, pk=None):
         """
         Confirm a reservation, changing its status from 'pending' to 'confirmed'.
@@ -769,6 +864,12 @@ class ReservationViewSet(viewsets.ModelViewSet):
         Returns:
             Response: The updated reservation or error message
         """
+        # For GET requests, just display a form with confirmation message
+        if request.method == 'GET':
+            # Use the serializer to display the correct form fields
+            serializer = self.get_serializer()
+            return Response(serializer.data)
+            
         # Check if CEDARS specialist role
         role = request.query_params.get('role', None)
         if role != 'cedars_specialist':
