@@ -269,3 +269,71 @@ class ReservationSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("This accommodation is already reserved for the selected dates")
             
         return data 
+
+class ReserveAccommodationSerializer(serializers.Serializer):
+    """
+    Serializer for reserving an accommodation.
+    
+    Fields:
+        accommodation_id (int): ID of the accommodation to reserve
+        start_date (date): Start date of the reservation (YYYY-MM-DD)
+        end_date (date): End date of the reservation (YYYY-MM-DD)
+        member_name (str): Name of the HKU member (only required for first-time users)
+    """
+    accommodation_id = serializers.IntegerField()
+    start_date = serializers.DateField()
+    end_date = serializers.DateField()
+    member_name = serializers.CharField(required=False)
+
+class CancelReservationSerializer(serializers.Serializer):
+    """
+    Serializer for cancelling a reservation.
+    
+    Fields:
+        reservation_id (int): ID of the reservation to cancel
+    """
+    reservation_id = serializers.IntegerField()
+
+class RateAccommodationSerializer(serializers.Serializer):
+    """
+    Serializer for rating an accommodation.
+    
+    Fields:
+        reservation_id (int): ID of the completed reservation
+        score (int): Rating score, 0-5
+        comment (str): Optional comment about the stay
+    """
+    reservation_id = serializers.IntegerField()
+    score = serializers.IntegerField(min_value=0, max_value=5)
+    comment = serializers.CharField(required=False, allow_blank=True)
+
+class UpdateAccommodationSerializer(serializers.Serializer):
+    """
+    Serializer for updating an accommodation by a CEDARS specialist.
+    
+    Fields:
+        accommodation_id (int): ID of the accommodation to update
+        type (str): Type of accommodation (optional)
+        address (str): Physical address (optional)
+        available_from (date): Start date of availability (optional)
+        available_until (date): End date of availability (optional)
+        beds (int): Number of beds (optional)
+        bedrooms (int): Number of bedrooms (optional)
+        daily_price (decimal): Price per day (optional)
+    """
+    accommodation_id = serializers.IntegerField()
+    type = serializers.ChoiceField(choices=["apartment", "house", "villa", "studio", "hostel"], required=False)
+    address = serializers.CharField(required=False)
+    available_from = serializers.DateField(required=False)
+    available_until = serializers.DateField(required=False)
+    beds = serializers.IntegerField(min_value=0, required=False)
+    bedrooms = serializers.IntegerField(min_value=0, required=False)
+    daily_price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0.01, required=False)
+
+class ConfirmReservationSerializer(serializers.Serializer):
+    """
+    Serializer for confirming a reservation.
+    This is a simple serializer as confirming only requires the reservation ID 
+    which is already part of the URL.
+    """
+    pass 
