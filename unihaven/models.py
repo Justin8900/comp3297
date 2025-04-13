@@ -1,6 +1,8 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib.auth.models import User
+from unihaven.utils.notifications import send_reservation_confirmation, send_reservation_update
+import logging
 
 # Create your models here.
 
