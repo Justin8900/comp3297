@@ -5,7 +5,7 @@ from unihaven.utils.notifications import send_reservation_confirmation, send_res
 import logging
 from django.dispatch import receiver
 from django.db.models.signals import post_save
-from django.utils.timezone import now
+
 
 # Create your models here.
 
@@ -345,8 +345,8 @@ class Reservation(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     cancelled_by = models.CharField(max_length=50, null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True, default=now)
-    updated_at = models.DateTimeField(auto_now=True, default=now)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     
     def __str__(self):
