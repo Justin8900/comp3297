@@ -153,7 +153,7 @@ LOGGING = {
         'file': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
-            'filename': 'reservation_activities.log',  # 日志文件路径
+            'filename': 'reservation_activities.log',
         },
     },
     'loggers': {
