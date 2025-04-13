@@ -10,6 +10,8 @@ The following endpoints are available:
 - /accommodations/: CRUD operations and search for accommodations
 - /hku-members/: CRUD operations for HKU members
 - /cedars-specialists/: CRUD operations for CEDARS specialists
+- /reservations/: CRUD operations for reservations
+- /ratings/: CRUD operations for ratings
 
 Each endpoint supports standard REST operations:
 - GET: List and retrieve
@@ -28,6 +30,8 @@ router.register(r'property-owners', views.PropertyOwnerViewSet)
 router.register(r'accommodations', views.AccommodationViewSet)
 router.register(r'hku-members', views.HKUMemberViewSet)
 router.register(r'cedars-specialists', views.CEDARSSpecialistViewSet)
+router.register(r'reservations', views.ReservationViewSet)
+router.register(r'ratings', views.RatingViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
