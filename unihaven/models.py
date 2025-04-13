@@ -318,7 +318,8 @@ class HKUMember(models.Model):
             member=self,
             status__in=['pending', 'confirmed']
         ).count()
-
+        
+logger = logging.getLogger('django')
 class Reservation(models.Model):
     """
     Model representing a reservation for an accommodation.
