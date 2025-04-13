@@ -345,8 +345,8 @@ class Reservation(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     cancelled_by = models.CharField(max_length=50, null=True, blank=True)
-    created_at = models.DateTimeField()
-    updated_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     
     def __str__(self):
