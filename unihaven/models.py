@@ -5,6 +5,7 @@ from unihaven.utils.notifications import send_reservation_confirmation, send_res
 import logging
 from django.dispatch import receiver
 from django.db.models.signals import post_save
+from unihaven.utils.notifications import send_specialist_notification
 
 
 # Create your models here.
@@ -360,53 +361,73 @@ class Reservation(models.Model):
         return f"{self.member} - {self.accommodation} ({self.start_date} to {self.end_date})"
         
     def cancel(self, user_type='member'):
-        """
-        Cancel the reservation and send a notification.
+    """
+    Cancel the reservation and send a notification.
+    """
+    from unihaven.utils.notifications import send_specialist_notification  # 确保导入函数
 
-        Args:
-            user_type (str): The type of user cancelling the reservation (e.g., 'member' or 'specialist').
+    old_status = self.status
+    self.status = 'cancelled'
+    self.cancelled_by = user_type
+    self.save()
 
-        Returns:
-            Reservation: The updated reservation instance.
-        """
-        old_status = self.status
-        self.status = 'cancelled'
-        self.cancelled_by = user_type
-        self.save()
-        send_reservation_update(self, old_status)
-        logger.info(f"Reservation #{self.id} has been cancelled by {user_type}.")
-        return self
+    subject = f"Reservation Cancelled: #{self.id}"
+    message = f"""
+Dear {self.accommodation.specialist.name},
+
+The following reservation has been cancelled:
+
+Reservation ID: {self.id}
+Accommodation: {self.accommodation.address}
+Cancelled by: {user_type}
+
+Regards,
+The UniHaven Team
+    """
+    send_specialist_notification(self, subject, message)
+
+    logger.info(f"Reservation #{self.id} has been cancelled by {user_type}.")
+    return self
+
 @receiver(post_save, sender=Reservation)
 def handle_reservation_updates(sender, instance, created, **kwargs):
     """
     Signal to handle reservation-related notifications and logging.
-
-    Args:
-        sender: The model class that sent the signal.
-        instance: The instance of the model that was saved.
-        created: A boolean indicating if the instance is newly created.
-        kwargs: Additional keyword arguments.
     """
     if created: 
-        logger.info(f"New reservation created: {instance.member.name} reserved {instance.accommodation.address} from {instance.start_date} to {instance.end_date}.")
+        subject = f"New Reservation Created: #{instance.id}"
+        message = f"""
+Dear {instance.accommodation.specialist.name},
 
-        success = send_reservation_confirmation(instance)
-        if success:
-            logger.info(f"Reservation confirmation email sent for reservation #{instance.id}")
-        else:
-            logger.error(f"Failed to send reservation confirmation email for reservation #{instance.id}")
+A new reservation has been created for an accommodation you manage:
+
+Reservation ID: {instance.id}
+Accommodation: {instance.accommodation.address}
+Type: {instance.accommodation.type}
+Check-in: {instance.start_date}
+Check-out: {instance.end_date}
+Status: {instance.status}
+
+Regards,
+The UniHaven Team
+        """
+        send_specialist_notification(instance, subject, message)
 
     elif instance.status == 'cancelled':
-        logger.info(f"Reservation #{instance.id} has been cancelled by {instance.cancelled_by}.")
-        old_status = 'confirmed'
-        
-    
-        success = send_reservation_update(instance, old_status)
-        if success:
-            logger.info(f"Reservation cancellation email sent for reservation #{instance.id}")
-        else:
-            logger.error(f"Failed to send reservation cancellation email for reservation #{instance.id}")
+        subject = f"Reservation Cancelled: #{instance.id}"
+        message = f"""
+Dear {instance.accommodation.specialist.name},
 
+The following reservation has been cancelled:
+
+Reservation ID: {instance.id}
+Accommodation: {instance.accommodation.address}
+Cancelled by: {instance.cancelled_by}
+
+Regards,
+The UniHaven Team
+        """
+        send_specialist_notification(instance, subject, message)
 
 class Rating(models.Model):
     """
