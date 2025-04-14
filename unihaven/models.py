@@ -5,7 +5,7 @@ from unihaven.utils.notifications import send_reservation_confirmation, send_res
 import logging
 from django.dispatch import receiver
 from django.db.models.signals import post_save
-
+from unihaven.utils.notifications import send_specialist_notification
 
 # Create your models here.
 
