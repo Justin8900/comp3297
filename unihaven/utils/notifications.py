@@ -48,7 +48,7 @@ The UniHaven Team
         if specialist:
             specialist_email = (
                 specialist.user.email if specialist.user and specialist.user.email
-                else "cedars-specialist@example.com"  # 默认邮箱地址
+                else "cedars-specialist@example.com" 
             )
         specialist_subject = f"New Reservation Created: #{reservation.id}"
         specialist_message = f"""
@@ -155,19 +155,20 @@ def send_specialist_notification(reservation, subject, message):
     """
     try:
         specialist = reservation.accommodation.specialist
-        if specialist and specialist.user and specialist.user.email:
-            send_mail(
-                subject,
-                message,
-                settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else 'unihaven@example.com',
-                [specialist.user.email],
-                fail_silently=False,
-            )
-            logger.info(f"Notification sent to CEDARS Specialist for reservation #{reservation.id}")
-            return True
-        else:
-            logger.warning(f"No valid email found for CEDARS Specialist managing reservation #{reservation.id}")
-            return False
+        # 确保默认邮箱逻辑被正确使用
+        specialist_email = (
+            specialist.user.email if specialist and specialist.user and specialist.user.email
+            else "cedars-specialist@example.com"
+        )
+        send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else 'unihaven@example.com',
+            [specialist_email], 
+            fail_silently=False,
+        )
+        logger.info(f"Notification sent to CEDARS Specialist for reservation #{reservation.id}")
+        return True
     except Exception as e:
         logger.error(f"Failed to send notification to CEDARS Specialist: {str(e)}")
         return False
