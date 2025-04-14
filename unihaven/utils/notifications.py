@@ -46,7 +46,7 @@ The UniHaven Team
         
         specialist_subject = f"New Reservation Created: #{reservation.id}"
         specialist_message = f"""
-Dear {reservation.accommodation.specialist.name},
+Dear specialist,
 
 A new reservation has been created for an accommodation you manage:
 
@@ -105,7 +105,7 @@ The UniHaven Team
         
         specialist_subject = f"Reservation Update: #{reservation.id}"
         specialist_message = f"""
-Dear {reservation.accommodation.specialist.name},
+Dear specialist,
 
 The following reservation status has been updated:
 
