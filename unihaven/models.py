@@ -386,8 +386,6 @@ def handle_reservation_updates(sender, instance, created, **kwargs):
     if created: 
         subject = f"New Reservation Created: #{instance.id}"
         message = f"""
-Dear {instance.accommodation.specialist.name},
-
 A new reservation has been created for an accommodation you manage:
 
 Reservation ID: {instance.id}
@@ -405,8 +403,6 @@ The UniHaven Team
     elif instance.status == 'cancelled':
         subject = f"Reservation Cancelled: #{instance.id}"
         message = f"""
-Dear {instance.accommodation.specialist.name},
-
 The following reservation has been cancelled:
 
 Reservation ID: {instance.id}
@@ -417,7 +413,6 @@ Regards,
 The UniHaven Team
         """
         send_specialist_notification(instance, subject, message)
-
 class Rating(models.Model):
     """
     Model representing a rating for an accommodation.
