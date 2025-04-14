@@ -71,7 +71,7 @@ def send_reservation_update(reservation, old_status):
     """
     Send a notification when a reservation status changes to both the student and the specialist.
     """
-    try：
+    try:
         subject = f"UniHaven Reservation Update #{reservation.id}"
         message = f"""
 Dear {reservation.member.name},
