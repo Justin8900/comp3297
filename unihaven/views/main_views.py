@@ -1056,6 +1056,14 @@ class ReservationViewSet(viewsets.ModelViewSet):
             )
             
         return super().create(request, *args, **kwargs)
+        
+        if Rating.objects.filter(reservation=reservation).exists():
+            return Response(
+                {"error": "You have already rated this accommodation"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+        return super().create(request, *args, **kwargs)
     
     def update(self, request, *args, **kwargs):
         """
@@ -1309,6 +1317,14 @@ class RatingViewSet(viewsets.ModelViewSet):
             
         if 'member_id' in self.request.query_params:
             queryset = queryset.filter(reservation__member__uid=self.request.query_params['member_id'])
+            
+        return queryset
+        
+        if 'min_score' in self.request.query_params:
+            queryset = queryset.filter(score__gte=self.request.query_params['min_score'])
+            
+        if 'max_score' in self.request.query_params:
+            queryset = queryset.filter(score__lte=self.request.query_params['max_score'])
             
         return queryset
 

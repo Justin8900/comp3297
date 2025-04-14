@@ -130,7 +130,14 @@ class AccommodationSerializer(serializers.ModelSerializer):
     # Add validation for numeric fields
     beds = serializers.IntegerField(min_value=0, label="Number of beds (must be 0 or greater)")
     bedrooms = serializers.IntegerField(min_value=0, label="Number of bedrooms (must be 0 or greater)")
-    average_rating = serializers.FloatField(read_only=True)
+    average_rating = serializers.FloatField(
+        read_only=True,
+        help_text="Average rating (0-5) based on all ratings for this accommodation"
+    )
+    rating_count = serializers.IntegerField(
+        read_only=True,
+        help_text="Total number of ratings for this accommodation"
+    )
     daily_price = serializers.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -147,7 +154,7 @@ class AccommodationSerializer(serializers.ModelSerializer):
         model = Accommodation
         fields = [
             'id', 'type', 'address', 'latitude', 'longitude', 'geo_address',
-            'available_from', 'available_until', 'beds', 'bedrooms', 'average_rating',
+            'available_from', 'available_until', 'beds', 'bedrooms', 'average_rating', 'rating_count',
             'daily_price', 'owner', 'owner_id', 'owner_name', 'owner_phone',
             'specialist', 'specialist_id'
         ]

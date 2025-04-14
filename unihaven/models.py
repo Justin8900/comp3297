@@ -202,6 +202,16 @@ class Accommodation(models.Model):
             return 0
         return sum(r.score for r in ratings) / ratings.count()
 
+    @property
+    def rating_count(self):
+        """
+        Get the total number of ratings for this accommodation.
+        
+        Returns:
+            int: Number of ratings
+        """
+        return Rating.objects.filter(reservation__accommodation=self).count()
+
 class HKUMember(models.Model):
     """
     Model representing a member of the Hong Kong University.
