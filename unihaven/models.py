@@ -362,27 +362,21 @@ class Reservation(models.Model):
     def cancel(self, user_type='member'):
         """
         Cancel the reservation and send a notification.
-        """
 
+        Args:
+            user_type (str): The type of user cancelling the reservation (e.g., 'member' or 'specialist').
+
+        Returns:
+            Reservation: The updated reservation instance.
+        """
         old_status = self.status
         self.status = 'cancelled'
         self.cancelled_by = user_type
         self.save()
 
-        subject = f"Reservation Cancelled: #{self.id}"
-        message = f"""
-        Dear {self.accommodation.specialist.name},
-        The following reservation has been cancelled:
-        Reservation ID: {self.id}
-        Accommodation: {self.accommodation.address}
-        Cancelled by: {user_type}
-        
-        Regards,
-        The UniHaven Team
-        """
-        send_specialist_notification(self, subject, message)
+        send_reservation_update(self, old_status)
         logger.info(f"Reservation #{self.id} has been cancelled by {user_type}.")
-        return self  
+        return self
 
 @receiver(post_save, sender=Reservation)
 def handle_reservation_updates(sender, instance, created, **kwargs):
