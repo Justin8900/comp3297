@@ -361,18 +361,17 @@ class Reservation(models.Model):
         return f"{self.member} - {self.accommodation} ({self.start_date} to {self.end_date})"
         
     def cancel(self, user_type='member'):
-    """
-    Cancel the reservation and send a notification.
-    """
-    from unihaven.utils.notifications import send_specialist_notification  # 确保导入函数
+        """
+        Cancel the reservation and send a notification.
+        """
 
-    old_status = self.status
-    self.status = 'cancelled'
-    self.cancelled_by = user_type
-    self.save()
+        old_status = self.status
+        self.status = 'cancelled'
+        self.cancelled_by = user_type
+        self.save()
 
-    subject = f"Reservation Cancelled: #{self.id}"
-    message = f"""
+        subject = f"Reservation Cancelled: #{self.id}"
+        message = f"""
 Dear {self.accommodation.specialist.name},
 
 The following reservation has been cancelled:
