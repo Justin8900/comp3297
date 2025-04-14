@@ -372,21 +372,19 @@ class Reservation(models.Model):
 
         subject = f"Reservation Cancelled: #{self.id}"
         message = f"""
-Dear {self.accommodation.specialist.name},
+        Dear {self.accommodation.specialist.name},
+        The following reservation has been cancelled:
+        Reservation ID: {self.id}
+        Accommodation: {self.accommodation.address}
+        Cancelled by: {user_type}
+        
+        Regards,
+        The UniHaven Team
+        """
+        send_specialist_notification(self, subject, message)
+        logger.info(f"Reservation #{self.id} has been cancelled by {user_type}.")
+        return self  
 
-The following reservation has been cancelled:
-
-Reservation ID: {self.id}
-Accommodation: {self.accommodation.address}
-Cancelled by: {user_type}
-
-Regards,
-The UniHaven Team
-    """
-       send_specialist_notification(self, subject, message)
-
-       logger.info(f"Reservation #{self.id} has been cancelled by {user_type}.")
-       return self  
 @receiver(post_save, sender=Reservation)
 def handle_reservation_updates(sender, instance, created, **kwargs):
     """
