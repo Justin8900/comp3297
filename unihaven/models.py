@@ -385,8 +385,8 @@ The UniHaven Team
     """
     send_specialist_notification(self, subject, message)
 
-    logger.info(f"Reservation #{self.id} has been cancelled by {user_type}.")
-    return self
+       logger.info(f"Reservation #{self.id} has been cancelled by {user_type}.")
+       return self
 
 @receiver(post_save, sender=Reservation)
 def handle_reservation_updates(sender, instance, created, **kwargs):
