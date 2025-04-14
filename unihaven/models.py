@@ -361,17 +361,17 @@ class Reservation(models.Model):
         return f"{self.member} - {self.accommodation} ({self.start_date} to {self.end_date})"
         
     def cancel(self, user_type='member'):
-        """
-        Cancel the reservation and send a notification.
-        """
+    """
+    Cancel the reservation and send a notification.
+    """
 
-        old_status = self.status
-        self.status = 'cancelled'
-        self.cancelled_by = user_type
-        self.save()
+    old_status = self.status
+    self.status = 'cancelled'
+    self.cancelled_by = user_type
+    self.save()
 
-        subject = f"Reservation Cancelled: #{self.id}"
-        message = f"""
+    subject = f"Reservation Cancelled: #{self.id}"
+    message = f"""
 Dear {self.accommodation.specialist.name},
 
 The following reservation has been cancelled:
@@ -385,8 +385,8 @@ The UniHaven Team
     """
     send_specialist_notification(self, subject, message)
 
-logger.info(f"Reservation #{self.id} has been cancelled by {user_type}.")
-       return self
+    logger.info(f"Reservation #{self.id} has been cancelled by {user_type}.")
+    return self 
 
 @receiver(post_save, sender=Reservation)
 def handle_reservation_updates(sender, instance, created, **kwargs):
