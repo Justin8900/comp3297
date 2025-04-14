@@ -44,6 +44,12 @@ The UniHaven Team
         )
         logger.info(f"Reservation confirmation sent for reservation #{reservation.id}")
         
+        specialist = reservation.accommodation.specialist
+        if specialist:
+            specialist_email = (
+                specialist.user.email if specialist.user and specialist.user.email
+                else "cedars-specialist@example.com"  # 默认邮箱地址
+            )
         specialist_subject = f"New Reservation Created: #{reservation.id}"
         specialist_message = f"""
 Dear specialist,
@@ -103,6 +109,12 @@ The UniHaven Team
         )
         logger.info(f"Reservation update notification sent for reservation #{reservation.id}")
         
+        specialist = reservation.accommodation.specialist
+        if specialist:
+            specialist_email = (
+                specialist.user.email if specialist.user and specialist.user.email
+                else "cedars-specialist@example.com"  # 默认邮箱地址
+            )
         specialist_subject = f"Reservation Update: #{reservation.id}"
         specialist_message = f"""
 Dear specialist,
