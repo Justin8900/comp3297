@@ -128,3 +128,39 @@ The UniHaven Team
     except Exception as e:
         logger.error(f"Failed to send reservation update notification: {str(e)}")
         return False
+
+def send_specialist_notification(reservation, subject, message):
+    """
+    Send a notification email to the CEDARS Specialist managing the accommodation.
+
+    Args:
+        reservation (Reservation): The Reservation object related to the notification.
+        subject (str): The subject of the email.
+        message (str): The message body of the email.
+
+    Returns:
+        bool: True if the email was sent successfully, False otherwise.
+    """
+    try:
+        specialist = reservation.accommodation.specialist
+        if specialist and specialist.user and specialist.user.email:
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else 'unihaven@example.com',
+                [specialist.user.email],
+                fail_silently=False,
+            )
+            logger.info(f"Notification sent to CEDARS Specialist for reservation #{reservation.id}")
+            return True
+        else:
+            logger.warning(f"No valid email found for CEDARS Specialist managing reservation #{reservation.id}")
+            return False
+    except Exception as e:
+        logger.error(f"Failed to send notification to CEDARS Specialist: {str(e)}")
+        return False
+
+
+
+
+
