@@ -328,7 +328,7 @@ class UpdateAccommodationSerializer(serializers.Serializer):
     available_until = serializers.DateField(required=False)
     beds = serializers.IntegerField(min_value=0, required=False)
     bedrooms = serializers.IntegerField(min_value=0, required=False)
-    daily_price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0.01, required=False)
+    daily_price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal(0.01), required=False)
 
 class ConfirmReservationSerializer(serializers.Serializer):
     """
