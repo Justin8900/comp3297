@@ -32,13 +32,14 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     'unihaven.apps.UnihavenConfig',
-    'django.contrib.admin',
+    # 'django.contrib.admin', # Commented out for demo API
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'drf_spectacular',
 ]
 
 MIDDLEWARE = [
@@ -127,19 +128,22 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # REST Framework settings
 REST_FRAMEWORK = {
+    # Use Django's standard `django.contrib.auth` permissions,
+    # or allow read-only access for unauthenticated users.
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny'
+    ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
-    ],
     'DEFAULT_FILTER_BACKENDS': [
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
-        'rest_framework.renderers.BrowsableAPIRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',  # Keep Browsable API for easy testing
     ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
 # Email settings (for development)
@@ -163,4 +167,105 @@ LOGGING = {
             'propagate': True,
         },
     },
+}
+# Spectacular settings
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Unihaven API',
+    'DESCRIPTION': '''
+API for Unihaven project - a platform for HKU student accommodation management.
+
+## Role-Based Access Control
+
+This API implements role-based access control through query parameters. For most endpoints, you must include a `role` query parameter with one of the following formats:
+
+- `cedars_specialist`: For CEDARS staff members (ID optional for some general actions like listing all owners/members/specialists).
+- `cedars_specialist:<id>`: For CEDARS staff members performing actions requiring their specific ID (e.g., retrieving managed accommodations).
+- `hku_member:<uid>`: For HKU students and staff (UID is generally required).
+
+### Required Role Parameter
+
+Most endpoints require the `role` parameter to be included in the request. For example:
+```
+GET /accommodations/?role=hku_member:u1234567
+POST /property-owners/?role=cedars_specialist
+GET /reservations/?role=cedars_specialist:1 # Requires ID for specialist
+GET /hku-members/u1234567/reservations/?role=hku_member:u1234567 # Requires matching ID
+```
+
+### Resource-Oriented Design & Actions
+
+The API generally follows a resource-oriented design. Specific actions often use dedicated sub-paths:
+- Creating a reservation: Use `POST /reservations/create/`
+- Canceling a reservation: Use `POST /reservations/{id}/cancel/`
+- Rating an accommodation: Use `POST /ratings/create/`
+- Listing managed accommodations: Use `GET /cedars-specialists/{id}/managed_accommodations/`
+
+**Note on Authentication/Permissions:** Some actions (notably Reservation creation/cancellation/listing and Rating creation/updating) use manual role checks within the view code and bypass standard DRF authentication/permission classes. This was done to resolve CSRF issues with non-browser clients while keeping CSRF protection enabled globally. The auto-generated schema may not fully reflect this bypass for those specific actions.
+
+### Permission Rules Summary:
+
+1.  **Property Owners (`/property-owners/`)**: Only CEDARS Specialists (ID optional) can perform List, Create, Retrieve, Update, Delete.
+2.  **Accommodations (`/accommodations/`)**:
+    - List/Search: Any HKU Member (`hku_member:uid`) or CEDARS Specialist (`cedars_specialist[:id]`).
+    - Retrieve: Any HKU Member (`hku_member:uid`) or CEDARS Specialist (`cedars_specialist[:id]`).
+    - Create/Update/Delete: Only CEDARS Specialists (`cedars_specialist[:id]`).
+    - `/search/` endpoint available for filtering.
+    - *Note: `/accommodations/{id}/reservations/` endpoint is currently not implemented/exposed.*
+3.  **HKU Members (`/hku-members/`)**:
+    - List/Create/Delete: Only CEDARS Specialists (`cedars_specialist[:id]`).
+    - Retrieve/Update: Any CEDARS Specialist (`cedars_specialist[:id]`) OR the specific HKU Member themselves (`hku_member:<uid>`).
+    - List Reservations (`/hku-members/{uid}/reservations/`): Any CEDARS Specialist (`cedars_specialist[:id]`) OR the specific HKU Member themselves (`hku_member:<uid>`).
+4.  **CEDARS Specialists (`/cedars-specialists/`)**: Only CEDARS Specialists (`cedars_specialist[:id]`) can perform List, Create, Retrieve, Update, Delete (including managing other specialists).
+    - List Managed Accommodations (`/cedars-specialists/{id}/managed_accommodations/`): Only the specific CEDARS Specialist (`cedars_specialist:<id>`).
+5.  **Reservations (`/reservations/`, `/reservations/create/`, `/reservations/{id}/cancel/`)**:
+    - List (`GET /reservations/`): Only CEDARS Specialists (`cedars_specialist[:id]`) - manual check implemented. HKU Members use `/hku-members/{uid}/reservations/`.
+    - Create (`POST /reservations/create/`): Any HKU Member (`hku_member:uid`, for self) OR any CEDARS Specialist (`cedars_specialist[:id]`, requires `member_id` in request body) - manual check implemented.
+    - Retrieve (`GET /reservations/{id}/`): Any CEDARS Specialist (`cedars_specialist[:id]`) OR the HKU Member (`hku_member:uid`) who owns the reservation.
+    - Cancel (`POST /reservations/{id}/cancel/`): Any CEDARS Specialist (`cedars_specialist[:id]`) OR the HKU Member (`hku_member:uid`) who owns the reservation - manual check implemented.
+    - Update (`PUT /reservations/{id}/`): Only CEDARS Specialists (`cedars_specialist[:id]`) - manual check implemented.
+    - Partial Update (`PATCH /reservations/{id}/`): **Disabled.** Use PUT for full updates.
+    - Delete (`DELETE /reservations/{id}/`): Only CEDARS Specialists (`cedars_specialist[:id]`).
+6.  **Ratings (`/ratings/`, `/ratings/create/`)**:
+    - List (`GET /ratings/`): Any CEDARS Specialist (`cedars_specialist[:id]`) (can list all); HKU Members (`hku_member:uid`) can list their own (filtered).
+    - Create (`POST /ratings/create/`): Only HKU Members (`hku_member:uid`) for their own completed reservations - manual check implemented.
+    - Retrieve (`GET /ratings/{id}/`): Any CEDARS Specialist (`cedars_specialist[:id]`) OR the HKU Member (`hku_member:uid`) who owns the rating's reservation.
+    - Update (`PUT /ratings/{id}/`): Only CEDARS Specialists (`cedars_specialist[:id]`) - manual check implemented.
+    - Delete (`DELETE /ratings/{id}/`): Only CEDARS Specialists (`cedars_specialist[:id]`).
+
+If you attempt to access an endpoint without the required role or permission, you should receive a 403 Forbidden or 400 Bad Request error with an appropriate error message.
+
+## Features
+
+- CEDARS Specialists can manage accommodations, property owners, and handle reservations
+- HKU members can search accommodations, make reservations, and rate their stays
+- Property owners are managed entities in the system, not users with direct API access
+''',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'SCHEMA_PATH_PREFIX': '/api/v1',
+    # Additional helpful settings
+    'COMPONENT_SPLIT_REQUEST': True,
+    'COMPONENT_SPLIT_RESPONSE': True,
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,
+        'displayOperationId': False,
+    },
+    'SWAGGER_UI_DIST': '//unpkg.com/swagger-ui-dist@5.9.0',
+    'REDOC_DIST': '//cdn.jsdelivr.net/npm/redoc@2.0.0/bundles/redoc.standalone.js',
+    'TAGS': [
+        {'name': 'accommodations', 'description': 'Operations related to student accommodations'},
+        {'name': 'cedars-specialists', 'description': 'Operations related to CEDARS specialists'},
+        {'name': 'hku-members', 'description': 'Operations related to HKU members'},
+        {'name': 'property-owners', 'description': 'Operations related to managing property owners'},
+        {'name': 'ratings', 'description': 'Operations for managing ratings associated with accommodations'},
+        {'name': 'reservations', 'description': 'Operations for managing reservations'},
+    ],
+    # Add explicit schema generation settings
+    'QUERY_PARAM_REGEX': '.*',
+    'SCHEMA_COERCE_PATH_PK_SUFFIX': True,
+    'CAMELIZE_NAMES': False,
+    'PREPROCESSING_HOOKS': [],
+    'POSTPROCESSING_HOOKS': [],
+    'ENUM_NAME_OVERRIDES': {},
 }
