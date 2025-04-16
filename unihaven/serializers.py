@@ -2,6 +2,26 @@ from rest_framework import serializers
 from decimal import Decimal
 from .models import PropertyOwner, Accommodation, HKUMember, CEDARSSpecialist, Reservation, Rating
 
+# Search parameters serializer
+class AccommodationSearchSerializer(serializers.Serializer):
+    """
+    Serializer for accommodation search parameters.
+    
+    Defines the query parameters that can be used to filter accommodations in the search endpoint.
+    All parameters are optional, allowing for flexible search criteria.
+    """
+    type = serializers.CharField(required=False, help_text="Filter by accommodation type (apartment, house, villa, studio, hostel)")
+    min_beds = serializers.IntegerField(required=False, help_text="Filter by minimum number of beds")
+    beds = serializers.IntegerField(required=False, help_text="Filter by exact number of beds")
+    min_bedrooms = serializers.IntegerField(required=False, help_text="Filter by minimum number of bedrooms")
+    bedrooms = serializers.IntegerField(required=False, help_text="Filter by exact number of bedrooms")
+    min_rating = serializers.FloatField(required=False, help_text="Filter by minimum rating (0-5)")
+    rating = serializers.FloatField(required=False, help_text="Filter by exact rating (0-5)")
+    max_price = serializers.FloatField(required=False, help_text="Filter by maximum price")
+    available_from = serializers.DateField(required=False, help_text="Filter by availability start date (YYYY-MM-DD)")
+    available_until = serializers.DateField(required=False, help_text="Filter by availability end date (YYYY-MM-DD)")
+    distance_from = serializers.CharField(required=False, help_text="Calculate distances from specified HKU location or address. Valid location names: Main Campus, Sassoon Road Campus, Swire Institute of Marine Science, Kadoorie Centre, Faculty of Dentistry")
+
 class PropertyOwnerSerializer(serializers.ModelSerializer):
     """
     Serializer for the PropertyOwner model.

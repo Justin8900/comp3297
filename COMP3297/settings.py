@@ -169,10 +169,65 @@ LOGGING = {
 # Spectacular settings
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Unihaven API',
-    'DESCRIPTION': 'API for Unihaven project'\
-        ' Cedars Specialist can checked the reserved accomodations and cancell it at all timres'\
-        ' HKU members can search accomodations, reserve it and rate the completed bookings',
+    'DESCRIPTION': '''
+API for Unihaven project - a platform for HKU student accommodation management.
+
+## Role-Based Access Control
+
+This API implements role-based access control through query parameters. For most endpoints, you must include a `role` query parameter with one of the following values:
+
+- `cedars_specialist`: For CEDARS staff members who manage accommodations and property owners
+- `hku_member`: For HKU students and staff who can search and book accommodations
+
+### Required Role Parameter
+
+Most endpoints require the `role` parameter to be included in the request. For example:
+```
+GET /accommodations/?role=hku_member
+POST /property-owners/?role=cedars_specialist
+```
+
+### Permission Rules:
+
+1. Viewing accommodations: Requires `role=hku_member` or `role=cedars_specialist`
+2. Creating/updating accommodations: Requires `role=cedars_specialist`
+3. Managing property owners: Requires `role=cedars_specialist`
+4. Creating reservations: Requires `role=hku_member`
+5. Confirming reservations: Requires `role=cedars_specialist`
+
+If you attempt to access an endpoint without the required role, you will receive a 403 Forbidden error with an appropriate error message.
+
+## Features
+
+- CEDARS Specialists can manage accommodations, property owners, and handle reservations
+- HKU members can search accommodations, make reservations, and rate their stays
+''',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'SCHEMA_PATH_PREFIX': '/api/v1',
+    # Additional helpful settings
+    'COMPONENT_SPLIT_REQUEST': True,
+    'COMPONENT_SPLIT_RESPONSE': True,
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,
+        'displayOperationId': False,
+    },
+    'SWAGGER_UI_DIST': '//unpkg.com/swagger-ui-dist@5.9.0',
+    'REDOC_DIST': '//cdn.jsdelivr.net/npm/redoc@2.0.0/bundles/redoc.standalone.js',
+    'TAGS': [
+        {'name': 'accommodations', 'description': 'Operations related to student accommodations'},
+        {'name': 'cedars-specialists', 'description': 'Operations related to CEDARS specialists'},
+        {'name': 'hku-members', 'description': 'Operations related to HKU members'},
+        {'name': 'property-owners', 'description': 'Operations related to managing property owners'},
+        {'name': 'ratings', 'description': 'Operations for managing ratings associated with accommodations'},
+        {'name': 'reservations', 'description': 'Operations for managing reservations'},
+    ],
+    # Add explicit schema generation settings
+    'QUERY_PARAM_REGEX': '.*',
+    'SCHEMA_COERCE_PATH_PK_SUFFIX': True,
+    'CAMELIZE_NAMES': False,
+    'PREPROCESSING_HOOKS': [],
+    'POSTPROCESSING_HOOKS': [],
+    'ENUM_NAME_OVERRIDES': {},
 }

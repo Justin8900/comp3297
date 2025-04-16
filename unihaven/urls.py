@@ -22,16 +22,20 @@ Each endpoint supports standard REST operations:
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from . import views
+# Import from the views.py module directly
+from .views import (
+    PropertyOwnerViewSet, AccommodationViewSet, HKUMemberViewSet,
+    CEDARSSpecialistViewSet, ReservationViewSet, RatingViewSet
+)
 
 # Use the router for full REST API functionality
 router = DefaultRouter()
-router.register(r'property-owners', views.PropertyOwnerViewSet)
-router.register(r'accommodations', views.AccommodationViewSet)
-router.register(r'hku-members', views.HKUMemberViewSet)
-router.register(r'cedars-specialists', views.CEDARSSpecialistViewSet)
-router.register(r'reservations', views.ReservationViewSet)
-router.register(r'ratings', views.RatingViewSet)
+router.register(r'property-owners', PropertyOwnerViewSet, basename='property-owner')
+router.register(r'accommodations', AccommodationViewSet, basename='accommodation')
+router.register(r'hku-members', HKUMemberViewSet, basename='hku-member')
+router.register(r'cedars-specialists', CEDARSSpecialistViewSet, basename='cedars-specialist')
+router.register(r'reservations', ReservationViewSet, basename='reservation')
+router.register(r'ratings', RatingViewSet, basename='rating')
 
 urlpatterns = [
     path('', include(router.urls)),
