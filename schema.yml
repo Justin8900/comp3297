@@ -5,12 +5,27 @@ info:
   description: API for Unihaven project Cedars Specialist can checked the reserved
     accomodations and cancell it at all timres HKU members can search accomodations,
     reserve it and rate the completed bookings
+tags:
+  - name: accommodations
+    description: Operations related to student accommodations
+  - name: cedars-specialists
+    description: Operations related to CEDARS specialists
+  - name: hku-members
+    description: Operations related to HKU members
+  - name: property-owners
+    description: Operations related to managing property owners
+  - name: ratings
+    description: Operations for managing ratings associated with accommodations
+  - name: reservations
+    description: Operations for managing reservations
+
 paths:
   /accommodations/:
     get:
       operationId: accommodations_list
+      summary: Retrieve a list of accommodations
       description: |-
-        List all accommodations.
+        List all available accommodations.
         Only HKU members and CEDARS specialists can list accommodations.
       parameters:
       - name: ordering
@@ -40,6 +55,7 @@ paths:
           description: ''
     post:
       operationId: accommodations_create
+      summary: Create a new accommodation
       description: |-
         Create a new accommodation.
         Only CEDARS specialists can create accommodations.
@@ -71,6 +87,7 @@ paths:
   /accommodations/{id}/:
     get:
       operationId: accommodations_retrieve
+      summary: Retrieve an accommodation
       description: |-
         Retrieve an accommodation.
         Only HKU members and CEDARS specialists can retrieve accommodation details.
@@ -96,6 +113,7 @@ paths:
           description: ''
     put:
       operationId: accommodations_update
+      summary: Update an accommodation
       description: |-
         Update an accommodation.
         Only CEDARS specialists can update accommodations.
@@ -133,6 +151,7 @@ paths:
           description: ''
     patch:
       operationId: accommodations_partial_update
+      summary: Partially update an accommodation
       description: |-
         ViewSet for managing accommodations.
         Provides CRUD operations and search functionality for Accommodation model.
@@ -175,6 +194,7 @@ paths:
           description: ''
     delete:
       operationId: accommodations_destroy
+      summary: Delete an accommodation
       description: |-
         Delete an accommodation.
         Only CEDARS specialists can delete accommodations.
@@ -197,6 +217,7 @@ paths:
   /accommodations/search/:
     get:
       operationId: accommodations_search_retrieve
+      summary: Search for accommodations
       description: |-
         Custom search endpoint for accommodations with advanced filtering.
         Only HKU members can search for accommodations.
@@ -229,6 +250,7 @@ paths:
   /cedars-specialists/:
     get:
       operationId: cedars_specialists_list
+      summary: List CEDARS specialists
       description: |-
         List CEDARS specialists.
         Only CEDARS specialists can list all specialists.
@@ -266,6 +288,7 @@ paths:
           description: ''
     post:
       operationId: cedars_specialists_create
+      summary: Create a new CEDARS specialist
       description: |-
         Create a new CEDARS specialist.
         Only CEDARS specialists can create new specialists.
@@ -297,6 +320,7 @@ paths:
   /cedars-specialists/{id}/:
     get:
       operationId: cedars_specialists_retrieve
+      summary: Retrieve a CEDARS specialist
       description: |-
         Retrieve a CEDARS specialist.
         Only CEDARS specialists can retrieve specialist details.
@@ -322,6 +346,7 @@ paths:
           description: ''
     put:
       operationId: cedars_specialists_update
+      summary: Update a CEDARS specialist
       description: |-
         Update a CEDARS specialist.
         Only CEDARS specialists can update specialist details.
@@ -359,6 +384,7 @@ paths:
           description: ''
     patch:
       operationId: cedars_specialists_partial_update
+      summary: Partially update a CEDARS specialist
       description: |-
         ViewSet for managing CEDARS specialists.
         Provides CRUD operations for CEDARSSpecialist model.
@@ -395,6 +421,7 @@ paths:
           description: ''
     delete:
       operationId: cedars_specialists_destroy
+      summary: Delete a CEDARS specialist
       description: |-
         Delete a CEDARS specialist.
         Only CEDARS specialists can delete specialists.
@@ -417,6 +444,7 @@ paths:
   /cedars-specialists/{id}/add_accommodation/:
     get:
       operationId: cedars_specialists_add_accommodation_retrieve
+      summary: Retrieve accommodation data for addition
       description: |-
         Add a new accommodation managed by this specialist.
 
@@ -448,6 +476,7 @@ paths:
           description: ''
     post:
       operationId: cedars_specialists_add_accommodation_create
+      summary: Create a new accommodation
       description: |-
         Add a new accommodation managed by this specialist.
 
@@ -492,6 +521,7 @@ paths:
   /cedars-specialists/{id}/cancel_reservation/:
     get:
       operationId: cedars_specialists_cancel_reservation_retrieve
+      summary: Retrieve cancellation details for a reservation
       description: |-
         Cancel a reservation as a CEDARS specialist.
 
@@ -523,6 +553,7 @@ paths:
           description: ''
     post:
       operationId: cedars_specialists_cancel_reservation_create
+      summary: Cancel a reservation
       description: |-
         Cancel a reservation as a CEDARS specialist.
 
@@ -567,6 +598,7 @@ paths:
   /cedars-specialists/{id}/managed_accommodations/:
     get:
       operationId: cedars_specialists_managed_accommodations_retrieve
+      summary: Get accommodations managed by a specialist
       description: |-
         Get all accommodations managed by a specific CEDARS specialist.
 
@@ -599,6 +631,7 @@ paths:
   /cedars-specialists/{id}/update_accommodation/:
     get:
       operationId: cedars_specialists_update_accommodation_retrieve
+      summary: Retrieve accommodation data for updating
       description: |-
         Update an existing accommodation managed by this specialist.
 
@@ -630,6 +663,7 @@ paths:
           description: ''
     post:
       operationId: cedars_specialists_update_accommodation_create
+      summary: Update an existing accommodation
       description: |-
         Update an existing accommodation managed by this specialist.
 
@@ -674,6 +708,7 @@ paths:
   /hku-members/:
     get:
       operationId: hku_members_list
+      summary: List all HKU members
       description: |-
         List HKU members.
         Only CEDARS specialists can list all HKU members.
@@ -711,6 +746,7 @@ paths:
           description: ''
     post:
       operationId: hku_members_create
+      summary: Create a new HKU member
       description: |-
         Create a new HKU member.
         Only CEDARS specialists can create HKU members directly.
@@ -742,6 +778,7 @@ paths:
   /hku-members/{uid}/:
     get:
       operationId: hku_members_retrieve
+      summary: Retrieve an HKU member
       description: |-
         Retrieve an HKU member.
         HKU members can only retrieve their own profile.
@@ -768,6 +805,7 @@ paths:
           description: ''
     put:
       operationId: hku_members_update
+      summary: Update an HKU member
       description: |-
         Update an HKU member.
         HKU members can only update their own profile.
@@ -806,6 +844,7 @@ paths:
           description: ''
     patch:
       operationId: hku_members_partial_update
+      summary: Partially update an HKU member
       description: |-
         ViewSet for managing HKU members.
         Provides CRUD operations for HKUMember model.
@@ -842,6 +881,7 @@ paths:
           description: ''
     delete:
       operationId: hku_members_destroy
+      summary: Delete an HKU member
       description: |-
         Delete an HKU member.
         Only CEDARS specialists can delete HKU members.
@@ -864,6 +904,7 @@ paths:
   /hku-members/{uid}/cancel_reservation/:
     get:
       operationId: hku_members_cancel_reservation_retrieve
+      summary: Retrieve cancellation details for a reservation
       description: |-
         Cancel a reservation for a specific HKU member.
 
@@ -895,6 +936,7 @@ paths:
           description: ''
     post:
       operationId: hku_members_cancel_reservation_create
+      summary: Cancel a reservation
       description: |-
         Cancel a reservation for a specific HKU member.
 
@@ -939,6 +981,7 @@ paths:
   /hku-members/{uid}/rate_accommodation/:
     get:
       operationId: hku_members_rate_accommodation_retrieve
+      summary: Retrieve rating data for an accommodation
       description: |-
         Rate an accommodation based on a reservation.
 
@@ -970,6 +1013,7 @@ paths:
           description: ''
     post:
       operationId: hku_members_rate_accommodation_create
+      summary: Rate an accommodation
       description: |-
         Rate an accommodation based on a reservation.
 
@@ -1014,6 +1058,7 @@ paths:
   /hku-members/{uid}/reservations/:
     get:
       operationId: hku_members_reservations_retrieve
+      summary: Get reservations for an HKU member
       description: |-
         Get all reservations for a specific HKU member.
 
@@ -1046,6 +1091,7 @@ paths:
   /hku-members/{uid}/reserve_accommodation/:
     get:
       operationId: hku_members_reserve_accommodation_retrieve
+      summary: Retrieve accommodation reservation data
       description: |-
         Reserve an accommodation for a specific HKU member.
 
@@ -1077,6 +1123,7 @@ paths:
           description: ''
     post:
       operationId: hku_members_reserve_accommodation_create
+      summary: Reserve an accommodation
       description: |-
         Reserve an accommodation for a specific HKU member.
 
@@ -1121,6 +1168,7 @@ paths:
   /property-owners/:
     get:
       operationId: property_owners_list
+      summary: List property owners
       description: |-
         ViewSet for managing property owners.
         Provides CRUD operations for PropertyOwner model.
@@ -1158,6 +1206,7 @@ paths:
           description: ''
     post:
       operationId: property_owners_create
+      summary: Create a new property owner
       description: |-
         Create a new property owner.
         Only CEDARS specialists can create property owners.
@@ -1189,6 +1238,7 @@ paths:
   /property-owners/{id}/:
     get:
       operationId: property_owners_retrieve
+      summary: Retrieve a property owner
       description: |-
         ViewSet for managing property owners.
         Provides CRUD operations for PropertyOwner model.
@@ -1214,6 +1264,7 @@ paths:
           description: ''
     put:
       operationId: property_owners_update
+      summary: Update a property owner
       description: |-
         Update a property owner.
         Only CEDARS specialists can update property owners.
@@ -1251,6 +1302,7 @@ paths:
           description: ''
     patch:
       operationId: property_owners_partial_update
+      summary: Partially update a property owner
       description: |-
         ViewSet for managing property owners.
         Provides CRUD operations for PropertyOwner model.
@@ -1287,6 +1339,7 @@ paths:
           description: ''
     delete:
       operationId: property_owners_destroy
+      summary: Delete a property owner
       description: |-
         Delete a property owner.
         Only CEDARS specialists can delete property owners.
@@ -1309,6 +1362,7 @@ paths:
   /ratings/:
     get:
       operationId: ratings_list
+      summary: List all ratings
       description: |-
         ViewSet for managing ratings.
         Provides CRUD operations for Rating model.
@@ -1346,6 +1400,7 @@ paths:
           description: ''
     post:
       operationId: ratings_create
+      summary: Create a new rating
       description: |-
         Create a new rating.
         Only HKU members can create ratings for their own completed reservations.
@@ -1377,6 +1432,7 @@ paths:
   /ratings/{id}/:
     get:
       operationId: ratings_retrieve
+      summary: Retrieve a specific rating
       description: |-
         ViewSet for managing ratings.
         Provides CRUD operations for Rating model.
@@ -1440,6 +1496,7 @@ paths:
           description: ''
     patch:
       operationId: ratings_partial_update
+      summary: Partially update a specific rating
       description: |-
         ViewSet for managing ratings.
         Provides CRUD operations for Rating model.
@@ -1476,6 +1533,7 @@ paths:
           description: ''
     delete:
       operationId: ratings_destroy
+      summary: Delete a specific rating
       description: |-
         Delete a rating.
         HKU members can delete their own ratings.
@@ -1499,6 +1557,7 @@ paths:
   /reservations/:
     get:
       operationId: reservations_list
+      summary: List all reservations
       description: |-
         ViewSet for managing reservations.
         Provides CRUD operations for Reservation model.
@@ -1536,6 +1595,7 @@ paths:
           description: ''
     post:
       operationId: reservations_create
+      summary: Create a new reservation
       description: |-
         Create a new reservation.
         Only HKU members can create reservations, and they should use the reserve_accommodation endpoint.
@@ -1568,6 +1628,7 @@ paths:
   /reservations/{id}/:
     get:
       operationId: reservations_retrieve
+      summary: Retrieve a specific reservation
       description: |-
         ViewSet for managing reservations.
         Provides CRUD operations for Reservation model.
@@ -1593,6 +1654,7 @@ paths:
           description: ''
     put:
       operationId: reservations_update
+      summary: Update a specific reservation
       description: |-
         Update a reservation.
         Only CEDARS specialists can update reservations directly.
@@ -1630,6 +1692,7 @@ paths:
           description: ''
     patch:
       operationId: reservations_partial_update
+      summary: Partially update a specific reservation
       description: |-
         ViewSet for managing reservations.
         Provides CRUD operations for Reservation model.
@@ -1666,6 +1729,7 @@ paths:
           description: ''
     delete:
       operationId: reservations_destroy
+      summary: Delete a specific reservation
       description: |-
         Delete a reservation.
         Only CEDARS specialists can delete reservations.
@@ -1689,6 +1753,7 @@ paths:
   /reservations/{id}/confirm/:
     get:
       operationId: reservations_confirm_retrieve
+      summary: Confirm a reservation
       description: |-
         Confirm a reservation, changing its status from 'pending' to 'confirmed'.
 
@@ -1716,6 +1781,7 @@ paths:
           description: No response body
     post:
       operationId: reservations_confirm_create
+      summary: Confirm a reservation
       description: |-
         Confirm a reservation, changing its status from 'pending' to 'confirmed'.
 
