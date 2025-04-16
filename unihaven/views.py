@@ -17,64 +17,90 @@ from .serializers import (
     ReserveAccommodationSerializer, CancelReservationSerializer, RateAccommodationSerializer,
     ConfirmReservationSerializer, AccommodationSearchSerializer, UpdateAccommodationSerializer
 )
-from .permissions import *
+from .permissions import (
+    IsAnyCEDARSSpecialist, 
+    IsAnyHKUMemberOrCEDARSSpecialist,
+    CanRetrieveUpdateHKUMember,
+    CanListReservations,
+    CanCreateReservation,
+    CanAccessReservationObject,
+    CanListRatings,
+    CanCreateRating,
+    CanAccessRatingObject,
+    get_role_and_id_from_request
+)
 from .utils.geocoding import geocode_address
 import math
-# Create your views here.
 
 # API Views
 @extend_schema_view(
     list=extend_schema(
-        summary="List property owners",
-        description="ViewSet for managing property owners.\nProvides CRUD operations for PropertyOwner model.",
+        summary="List property owners (Specialists Only)",
+        description="List all property owners. Only CEDARS specialists can perform this action.",
         parameters=[
             OpenApiParameter(
                 name="role", 
-                description="User role (must be 'cedars_specialist' for this endpoint)", 
+                description="User role (must be 'cedars_specialist[:id]')", 
                 required=True,
                 type=str
             )
         ]
     ),
     create=extend_schema(
-        summary="Create a new property owner",
-        description="Create a new property owner.\nOnly CEDARS specialists can create property owners.",
+        summary="Create property owner (Specialists Only)",
+        description="Create a new property owner. Only CEDARS specialists can perform this action.",
         parameters=[
             OpenApiParameter(
                 name="role", 
-                description="User role (must be 'cedars_specialist' for this endpoint)", 
+                description="User role (must be 'cedars_specialist[:id]')", 
                 required=True,
                 type=str
             )
         ]
     ),
     retrieve=extend_schema(
-        summary="Retrieve a property owner", 
-        description="ViewSet for managing property owners.\nProvides CRUD operations for PropertyOwner model."
-    ),
-    update=extend_schema(
-        summary="Update a property owner",
-        description="Update a property owner.\nOnly CEDARS specialists can update property owners.",
+        summary="Retrieve property owner (Specialists Only)", 
+        description="Retrieve details of a specific property owner. Only CEDARS specialists can perform this action.",
         parameters=[
             OpenApiParameter(
                 name="role", 
-                description="User role (must be 'cedars_specialist' for this endpoint)", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
+            )
+        ]
+    ),
+    update=extend_schema(
+        summary="Update property owner (Specialists Only)",
+        description="Update a property owner. Only CEDARS specialists can perform this action.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
                 required=True,
                 type=str
             )
         ]
     ),
     partial_update=extend_schema(
-        summary="Partially update a property owner",
-        description="ViewSet for managing property owners.\nProvides CRUD operations for PropertyOwner model."
-    ),
-    destroy=extend_schema(
-        summary="Delete a property owner",
-        description="Delete a property owner.\nOnly CEDARS specialists can delete property owners.",
+        summary="Partially update property owner (Specialists Only)",
+        description="Partially update a property owner. Only CEDARS specialists can perform this action.",
         parameters=[
             OpenApiParameter(
                 name="role", 
-                description="User role (must be 'cedars_specialist' for this endpoint)", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
+            )
+        ]
+    ),
+    destroy=extend_schema(
+        summary="Delete property owner (Specialists Only)",
+        description="Delete a property owner. Only CEDARS specialists can perform this action.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
                 required=True,
                 type=str
             )
@@ -85,239 +111,187 @@ class PropertyOwnerViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing property owners.
     Provides CRUD operations for PropertyOwner model.
+    Requires CEDARS Specialist role for all actions.
     """
     queryset = PropertyOwner.objects.all().order_by('id')
     serializer_class = PropertyOwnerSerializer
-    
-    def get_permissions(self):
-        """
-        Since authentication is handled by the CEDARS frontend, 
-        we're using AllowAny permission and filtering based on role header/parameter.
-        """
-        return [permissions.AllowAny()]
-        
+    permission_classes = [IsAnyCEDARSSpecialist]
+
     def list(self, request, *args, **kwargs):
-        """
-        List all property owners.
-        Only CEDARS specialists should be able to list all property owners.
-        """
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can list all property owners"},
-                status=status.HTTP_403_FORBIDDEN
-            )
         return super().list(request, *args, **kwargs)
         
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+        
     def create(self, request, *args, **kwargs):
-        """
-        Create a new property owner.
-        Only CEDARS specialists can create property owners.
-        """
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can create property owners"},
-                status=status.HTTP_403_FORBIDDEN
-            )
         return super().create(request, *args, **kwargs)
         
     def update(self, request, *args, **kwargs):
-        """
-        Update a property owner.
-        Only CEDARS specialists can update property owners.
-        """
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can update property owners"},
-                status=status.HTTP_403_FORBIDDEN
-            )
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True 
         return super().update(request, *args, **kwargs)
         
     def destroy(self, request, *args, **kwargs):
-        """
-        Delete a property owner.
-        Only CEDARS specialists can delete property owners.
-        """
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can delete property owners"},
-                status=status.HTTP_403_FORBIDDEN
-            )
         return super().destroy(request, *args, **kwargs)
+        
 
 @extend_schema_view(
     list=extend_schema(
-        summary="Retrieve a list of accommodations",
-        description="List all available accommodations.\nOnly HKU members and CEDARS specialists can list accommodations.",
+        summary="List all accommodations",
+        description="List all accommodations. Accessible by both HKU members and CEDARS specialists.",
         parameters=[
-            OpenApiParameter(name="role", description="User role (must be 'hku_member' or 'cedars_specialist')", required=True, type=str),
-            OpenApiParameter(name="type", description="Filter by accommodation type", type=str),
-            OpenApiParameter(name="owner_id", description="Filter by property owner ID", type=int),
-            OpenApiParameter(name="specialist_id", description="Filter by CEDARS specialist ID", type=int),
-            OpenApiParameter(name="available_now", description="Filter currently available accommodations", type=bool),
-            OpenApiParameter(name="min_price", description="Filter by minimum price", type=float),
-            OpenApiParameter(name="max_price", description="Filter by maximum price", type=float),
-            OpenApiParameter(name="min_rating", description="Filter by minimum rating", type=float),
-            OpenApiParameter(name="min_beds", description="Filter by minimum number of beds", type=int),
-            OpenApiParameter(name="address_contains", description="Filter by address text", type=str),
+            OpenApiParameter(
+                name="role", 
+                description="User role (format: 'hku_member:uid' or 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
+            )
         ]
     ),
     create=extend_schema(
-        summary="Create a new accommodation",
-        description="Create a new accommodation.\nOnly CEDARS specialists can create accommodations.",
+        summary="Create accommodation (Specialists Only)",
+        description="Create a new accommodation listing. Only CEDARS specialists can perform this action.",
         parameters=[
-            OpenApiParameter(name="role", description="User role (must be 'cedars_specialist')", required=True, type=str),
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
+            )
         ]
     ),
     retrieve=extend_schema(
         summary="Retrieve an accommodation",
-        description="Retrieve an accommodation.\nOnly HKU members and CEDARS specialists can retrieve accommodation details.",
+        description="Retrieve details for a specific accommodation. Accessible by both HKU members and CEDARS specialists.",
         parameters=[
-            OpenApiParameter(name="role", description="User role (must be 'hku_member' or 'cedars_specialist')", required=True, type=str),
+            OpenApiParameter(
+                name="role", 
+                description="User role (format: 'hku_member:uid' or 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
+            )
         ]
     ),
     update=extend_schema(
-        summary="Update an accommodation",
-        description="Update an accommodation.\nOnly CEDARS specialists can update accommodations.",
+        summary="Update accommodation (Specialists Only)",
+        description="Update an accommodation listing. Only CEDARS specialists can perform this action.",
         parameters=[
-            OpenApiParameter(name="role", description="User role (must be 'cedars_specialist')", required=True, type=str),
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
+            )
         ]
     ),
     partial_update=extend_schema(
-        summary="Partially update an accommodation",
-        description="ViewSet for managing accommodations.\nProvides CRUD operations and search functionality for Accommodation model.\n\nFeatures:\n- Filtering by type, price, rating, beds, bedrooms, availability\n- Geocoding of addresses\n- Distance-based search from HKU locations\n- Custom search endpoint",
+        summary="Partially update accommodation (Specialists Only)",
+        description="Partially update an accommodation listing. Only CEDARS specialists can perform this action.",
         parameters=[
-            OpenApiParameter(name="role", description="User role (must be 'cedars_specialist')", required=True, type=str),
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
+            )
         ]
     ),
     destroy=extend_schema(
-        summary="Delete an accommodation",
-        description="Delete an accommodation.\nOnly CEDARS specialists can delete accommodations.",
+        summary="Delete accommodation (Specialists Only)",
+        description="Delete an accommodation listing. Only CEDARS specialists can perform this action.",
         parameters=[
-            OpenApiParameter(name="role", description="User role (must be 'cedars_specialist')", required=True, type=str),
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
+            )
         ]
     )
 )
 class AccommodationViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing accommodations.
-    Provides CRUD operations and search functionality for Accommodation model.
-    
-    Features:
-    - Filtering by type, price, rating, beds, bedrooms, availability
-    - Geocoding of addresses
-    - Distance-based search from HKU locations
-    - Custom search endpoint
     """
-    queryset = Accommodation.objects.all().select_related('owner', 'specialist').order_by('id')
+    queryset = Accommodation.objects.all().order_by('id')
     serializer_class = AccommodationSerializer
-    filter_backends = [filters.OrderingFilter]
-    ordering_fields = ['daily_price', 'beds', 'bedrooms', 'available_from', 'available_until']
-    
+    permission_classes = [IsAnyHKUMemberOrCEDARSSpecialist]
+
     def get_permissions(self):
-        """
-        Since authentication is handled by the CEDARS frontend, 
-        we're using AllowAny permission and filtering based on role header/parameter.
-        """
-        return [permissions.AllowAny()]
+        base_perms = []
+        if self.action in ['list', 'retrieve', 'search']:
+            role_perms = [IsAnyHKUMemberOrCEDARSSpecialist]
+        elif self.action in ['create', 'update', 'partial_update', 'destroy', 'reservations']:
+            role_perms = [IsAnyCEDARSSpecialist]
+        else:
+            role_perms = [permissions.IsAdminUser]
+        return [permission() for permission in base_perms + role_perms]
     
     def list(self, request, *args, **kwargs):
-        """
-        List all accommodations.
-        Only HKU members and CEDARS specialists can list accommodations.
-        """
-        # Check if HKU member or CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'hku_member' and role != 'cedars_specialist':
-            return Response(
-                {"error": "Only HKU members or CEDARS specialists can list accommodations"},
-                status=status.HTTP_403_FORBIDDEN
-            )
         return super().list(request, *args, **kwargs)
     
     def retrieve(self, request, *args, **kwargs):
-        """
-        Retrieve an accommodation.
-        Only HKU members and CEDARS specialists can retrieve accommodation details.
-        """
-        # Check if HKU member or CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'hku_member' and role != 'cedars_specialist':
-            return Response(
-                {"error": "Only HKU members or CEDARS specialists can view accommodation details"},
-                status=status.HTTP_403_FORBIDDEN
-            )
         return super().retrieve(request, *args, **kwargs)
         
     def create(self, request, *args, **kwargs):
-        """
-        Create a new accommodation.
-        Only CEDARS specialists can create accommodations.
-        """
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can create accommodations"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        return super().create(request, *args, **kwargs)
-        
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        accommodation = serializer.instance
+        if accommodation.address:
+            try:
+                lat, lng, geo = geocode_address(accommodation.address)
+                if lat is not None and lng is not None and geo is not None:
+                    accommodation.latitude = lat
+                    accommodation.longitude = lng
+                    accommodation.geo_address = geo
+                    accommodation.save(update_fields=['latitude', 'longitude', 'geo_address'])
+            except Exception as e:
+                print(f"Geocoding failed for address {accommodation.address}: {e}") 
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def perform_create(self, serializer):
+        serializer.save()
+
     def update(self, request, *args, **kwargs):
-        """
-        Update an accommodation.
-        Only CEDARS specialists can update accommodations.
-        """
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can update accommodations"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        return super().update(request, *args, **kwargs)
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        address_changed = 'address' in serializer.validated_data and serializer.validated_data['address'] != instance.address
+        self.perform_update(serializer)
+        if address_changed:
+            accommodation = serializer.instance
+            if accommodation.address:
+                try:
+                    lat, lng, geo = geocode_address(accommodation.address)
+                    if lat is not None and lng is not None and geo is not None:
+                        accommodation.latitude = lat
+                        accommodation.longitude = lng
+                        accommodation.geo_address = geo
+                        accommodation.save(update_fields=['latitude', 'longitude', 'geo_address'])
+                except Exception as e:
+                    print(f"Geocoding failed during update for address {accommodation.address}: {e}")
+        if getattr(instance, '_prefetched_objects_cache', None):
+            instance._prefetched_objects_cache = {}
+        return Response(serializer.data)
+
+    def perform_update(self, serializer):
+        serializer.save()
         
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+
     def destroy(self, request, *args, **kwargs):
-        """
-        Delete an accommodation.
-        Only CEDARS specialists can delete accommodations.
-        """
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can delete accommodations"},
-                status=status.HTTP_403_FORBIDDEN
-            )
         return super().destroy(request, *args, **kwargs)
     
     def get_queryset(self):
-        """
-        Get filtered queryset based on query parameters.
-        
-        Available filters:
-        - type: Filter by accommodation type
-        - owner_id: Filter by property owner
-        - specialist_id: Filter by CEDARS specialist
-        - available_now: Filter currently available accommodations
-        - min_price/max_price: Filter by price range
-        - min_rating: Filter by minimum average rating
-        - min_beds: Filter by minimum number of beds
-        - address_contains: Filter by address text
-        
-        Returns:
-            QuerySet: Filtered queryset of accommodations
-        """
         queryset = super().get_queryset()
         
-        # Apply filters based on query parameters
         if 'type' in self.request.query_params:
             queryset = queryset.filter(type=self.request.query_params['type'])
         
@@ -338,7 +312,6 @@ class AccommodationViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(daily_price__lte=self.request.query_params['max_price'])
         
         if 'min_rating' in self.request.query_params:
-            # Filter accommodations with average rating greater than or equal to min_rating
             min_rating = float(self.request.query_params['min_rating'])
             accommodation_ids = []
             for accommodation in queryset:
@@ -360,128 +333,93 @@ class AccommodationViewSet(viewsets.ModelViewSet):
     
     @extend_schema(
         summary="Search for accommodations",
-        description="Custom search endpoint for accommodations with advanced filtering.\nOnly HKU members can search for accommodations.",
+        description="Custom search endpoint for accommodations with advanced filtering. Accessible by both HKU members and CEDARS specialists.",
         parameters=[
-            OpenApiParameter(name="role", description="User role (must be 'hku_member' or 'cedars_specialist')", required=True, type=str),
-            OpenApiParameter(name="type", description="Filter by accommodation type", type=str),
-            OpenApiParameter(name="min_beds", description="Filter by minimum number of beds", type=int),
-            OpenApiParameter(name="beds", description="Filter by exact number of beds", type=int),
-            OpenApiParameter(name="min_bedrooms", description="Filter by minimum number of bedrooms", type=int),
-            OpenApiParameter(name="bedrooms", description="Filter by exact number of bedrooms", type=int),
-            OpenApiParameter(name="min_rating", description="Filter by minimum rating", type=float),
-            OpenApiParameter(name="rating", description="Filter by exact rating", type=float),
-            OpenApiParameter(name="max_price", description="Filter by maximum price", type=float),
-            OpenApiParameter(name="available_from", description="Filter by availability start date (YYYY-MM-DD)", type=str),
-            OpenApiParameter(name="available_until", description="Filter by availability end date (YYYY-MM-DD)", type=str),
-            OpenApiParameter(name="distance_from", description="Calculate distances from specified HKU location or address", type=str),
+            OpenApiParameter(name="role", description="User role (format: 'hku_member:uid' or 'cedars_specialist[:id]')", required=True, type=str),
+            OpenApiParameter(name="type", description="Filter by accommodation type (e.g., 'apartment', 'house')", type=str),
+            OpenApiParameter(name="min_beds", description="Filter by minimum number of beds", type=OpenApiTypes.INT),
+            OpenApiParameter(name="beds", description="Filter by exact number of beds", type=OpenApiTypes.INT),
+            OpenApiParameter(name="min_bedrooms", description="Filter by minimum number of bedrooms", type=OpenApiTypes.INT),
+            OpenApiParameter(name="bedrooms", description="Filter by exact number of bedrooms", type=OpenApiTypes.INT),
+            OpenApiParameter(name="min_rating", description="Filter by minimum average rating (e.g., 4.0)", type=OpenApiTypes.FLOAT),
+            OpenApiParameter(name="rating", description="Filter by exact average rating (e.g., 4.5)", type=OpenApiTypes.FLOAT),
+            OpenApiParameter(name="max_price", description="Filter by maximum daily price", type=OpenApiTypes.FLOAT),
+            OpenApiParameter(name="available_from", description="Filter by availability start date (YYYY-MM-DD)", type=OpenApiTypes.DATE),
+            OpenApiParameter(name="available_until", description="Filter by availability end date (YYYY-MM-DD)", type=OpenApiTypes.DATE),
+            OpenApiParameter(name="distance_from", description="Calculate and sort by distance from a specified HKU location (e.g., 'Main Campus', 'Sassoon Road') or address", type=str),
         ],
-        responses={200: AccommodationSerializer}
+        responses={200: AccommodationSerializer(many=True)} # Response structure depends on distance_from
     )
-    @action(detail=False, methods=['get'], url_path='search')
+    @action(detail=False, methods=['get'], url_path='search', permission_classes=[IsAnyHKUMemberOrCEDARSSpecialist])
     def search(self, request):
-        """
-        Custom search endpoint for accommodations with advanced filtering.
-        Only HKU members can search for accommodations.
+        queryset = Accommodation.objects.all().order_by('id')
         
-        Query Parameters:
-        - type: Filter by accommodation type
-        - min_beds/exact_beds: Filter by number of beds (minimum or exact)
-        - min_bedrooms/exact_bedrooms: Filter by number of bedrooms (minimum or exact)
-        - min_rating/exact_rating: Filter by rating (minimum or exact)
-        - max_price: Filter by maximum price
-        - available_from: Filter by availability start date
-        - available_until: Filter by availability end date
-        - distance_from: Calculate distances from specified HKU location or address
-        
-        Returns:
-            Response: JSON response containing filtered accommodations with optional distance calculations
-        """
-        # Check if HKU member role
-        role = request.query_params.get('role', None)
-        if role != 'hku_member' and role != 'cedars_specialist':
-            return Response(
-                {"error": "Only HKU members or CEDARS specialists can search accommodations"},
-                status=status.HTTP_403_FORBIDDEN
-            )
+        if 'type' in request.query_params:
+            queryset = queryset.filter(type=request.query_params['type'])
             
-        print("Search function reached")   
-        query = Accommodation.objects.all()
-        accommodation_type = request.GET.get('type')
-        min_beds = request.GET.get('min_beds')
-        exact_beds = request.GET.get('beds')
-        min_bedrooms = request.GET.get('min_bedrooms')
-        exact_bedrooms = request.GET.get('bedrooms')
-        min_rating = request.GET.get('min_rating')
-        exact_rating = request.GET.get('rating')
-        max_price = request.GET.get('max_price')
-        available_from = request.GET.get('available_from')
-        available_until = request.GET.get('available_until')
-        distance_from = request.GET.get('distance_from')  # Building name
-        selected = {
-            "Main Campus": (22.28405, 114.13784),
-            "Sassoon Road Campus": (22.2675, 114.12881),
-            "Swire Institute of Marine Science": (22.20805, 114.26021),
-            "Kadoorie Centre": (22.43022, 114.11429),
-            "Faculty of Dentistry": (22.28649, 114.14426),
-        }
-        R = 6371 
-
-        if accommodation_type:
-            query = query.filter(type=accommodation_type)
-        
-        if min_beds:
-            query = query.filter(beds__gte=int(min_beds))#>=
-        
-        if exact_beds: #exact beds
-            query = query.filter(beds=int(exact_beds)) 
-        
-        if min_bedrooms:
-            query = query.filter(bedrooms__gte= int(min_bedrooms)) #>=
-        
-        if exact_bedrooms: #exact bedrooms
-            query = query.filter(bedrooms=int(exact_bedrooms)) #exact bedrooms
-        
-        if available_from:
-            query = query.filter(available_from__gte=datetime.strptime(available_from, "%Y-%m-%d")) #>=
-
-        if available_until:
-            query = query.filter(available_until__lte=datetime.strptime(available_until, "%Y-%m-%d")) #<=
-
-        # Handle rating filtering based on average_rating property
-        filtered_accommodations = list(query)
-        if min_rating:
-            min_rating_value = float(min_rating)
-            filtered_accommodations = [acc for acc in filtered_accommodations if acc.average_rating >= min_rating_value]
+        if 'min_beds' in request.query_params:
+            queryset = queryset.filter(beds__gte=int(request.query_params['min_beds']))
             
-        if exact_rating:
-            exact_rating_value = float(exact_rating)
-            filtered_accommodations = [acc for acc in filtered_accommodations if round(acc.average_rating) == exact_rating_value]
-    
-        if max_price:
-            query = query.filter(daily_price__lte=Decimal(max_price)) #<=
-            filtered_accommodations = list(query)
-
-        if distance_from:
-            if distance_from in selected:
-                ref_lat, ref_lon = selected[distance_from]
-            else:
-                ref_lat, ref_lon, _ = geocode_address(distance_from)
-            if ref_lat is not None and ref_lon is not None:
-                accommodations_with_distance = []
-                for accommodation in filtered_accommodations:
-                    if accommodation.latitude is None or accommodation.longitude is None:
-                        continue  
-
-                    lat1, lon1 = math.radians(ref_lat), math.radians(ref_lon)
-                    lat2, lon2 = math.radians(accommodation.latitude), math.radians(accommodation.longitude)
-                    x = (lon2 - lon1) * math.cos((lat1 + lat2) / 2)
-                    y = (lat2 - lat1)
-                    d = math.sqrt(x*x + y*y) * R 
-                    accommodations_with_distance.append((d, accommodation))
-
-                accommodations_with_distance.sort(key=lambda item: item[0])
-                results = []
-                for d, acc in accommodations_with_distance:
+        if 'beds' in request.query_params:
+            queryset = queryset.filter(beds=int(request.query_params['beds']))
+            
+        if 'min_bedrooms' in request.query_params:
+            queryset = queryset.filter(bedrooms__gte=int(request.query_params['min_bedrooms']))
+            
+        if 'bedrooms' in request.query_params:
+            queryset = queryset.filter(bedrooms=int(request.query_params['bedrooms']))
+            
+        if 'max_price' in request.query_params:
+            queryset = queryset.filter(daily_price__lte=float(request.query_params['max_price']))
+            
+        today = datetime.now().date()
+        
+        if 'available_from' in request.query_params:
+            try:
+                available_from = datetime.strptime(request.query_params['available_from'], '%Y-%m-%d').date()
+                queryset = queryset.filter(available_from__lte=available_from, available_until__gte=available_from)
+            except ValueError:
+                return Response(
+                    {"error": "Invalid date format. Use YYYY-MM-DD."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+        if 'available_until' in request.query_params:
+            try:
+                available_until = datetime.strptime(request.query_params['available_until'], '%Y-%m-%d').date()
+                queryset = queryset.filter(available_from__lte=available_until, available_until__gte=available_until)
+            except ValueError:
+                return Response(
+                    {"error": "Invalid date format. Use YYYY-MM-DD."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        filtered_accommodations = list(queryset)
+        
+        if 'min_rating' in request.query_params:
+            min_rating = float(request.query_params['min_rating'])
+            filtered_accommodations = [acc for acc in filtered_accommodations if acc.average_rating >= min_rating]
+            
+        if 'rating' in request.query_params:
+            rating = float(request.query_params['rating'])
+            filtered_accommodations = [acc for acc in filtered_accommodations if abs(acc.average_rating - rating) < 0.1]
+        
+        if 'distance_from' in request.query_params:
+            from unihaven.utils.geocoding import get_hku_location, calculate_distance
+            
+            location_name = request.query_params.get('distance_from', '')
+            source_lat, source_lng = get_hku_location(location_name)
+            
+            if source_lat is None or source_lng is None:
+                return Response(
+                    {"error": f"Unknown location: {location_name}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+            results = []
+            for acc in filtered_accommodations:
+                if acc.latitude is not None and acc.longitude is not None:
+                    distance = calculate_distance(source_lat, source_lng, acc.latitude, acc.longitude)
                     results.append({
                         'id': acc.id,
                         'type': acc.type,
@@ -492,10 +430,13 @@ class AccommodationViewSet(viewsets.ModelViewSet):
                         'daily_price': acc.daily_price,
                         'available_from': acc.available_from,
                         'available_until': acc.available_until,
-                        'distance_km': round(d, 2),
+                        'distance_km': round(distance, 2)
                     })
-            else:
-                results = {"error": "Invalid location specified"}
+            
+            results.sort(key=lambda x: x['distance_km'])
+            
+            return Response(results)
+        
         else:
             results = []
             for acc in filtered_accommodations:
@@ -512,1023 +453,903 @@ class AccommodationViewSet(viewsets.ModelViewSet):
                 })
         
         return Response(results)
-    
-    def perform_create(self, serializer):
-        """
-        Create a new accommodation and geocode its address.
-        
-        Args:
-            serializer: The serializer instance containing the accommodation data
-            
-        Returns:
-            Accommodation: The created accommodation instance with geocoded coordinates
-        """
-        # First save the accommodation with the provided data
-        accommodation = serializer.save()
-        
-        # Then attempt to geocode the address
-        if accommodation.address:
-            lat, lng, geo = geocode_address(accommodation.address)
-            if lat is not None and lng is not None and geo is not None:
-                accommodation.latitude = lat
-                accommodation.longitude = lng
-                accommodation.geo_address = geo
-                accommodation.save()
-                
-        return accommodation
-        
-    def perform_update(self, serializer):
-        """
-        Update an accommodation and geocode its address if changed.
-        
-        Args:
-            serializer: The serializer instance containing the updated accommodation data
-            
-        Returns:
-            Accommodation: The updated accommodation instance with geocoded coordinates
-        """
-        # Check if address has changed
-        if serializer.instance.address != serializer.validated_data.get('address', serializer.instance.address):
-            # Save first to update the address
-            accommodation = serializer.save()
-            
-            # Then geocode the new address
-            lat, lng, geo = geocode_address(accommodation.address)
-            if lat is not None and lng is not None and geo is not None:
-                accommodation.latitude = lat
-                accommodation.longitude = lng
-                accommodation.geo_address = geo
-                accommodation.save()
-        else:
-            # No address change, just save normally
-            accommodation = serializer.save()
-            
-        return accommodation
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List HKU members (Specialists Only)",
+        description="List all HKU members. Only CEDARS specialists can perform this action.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
+            )
+        ]
+    ),
+    create=extend_schema(
+        summary="Create HKU member (Specialists Only)",
+        description="Create a new HKU member. Only CEDARS specialists can perform this action.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
+            )
+        ]
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a HKU member", 
+        description="Retrieve a HKU member by UID. CEDARS specialists can retrieve any member. HKU members can only retrieve their own details (matching UID in role).",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role with ID (format: 'hku_member:uid' or 'cedars_specialist[:id]') identifying the requester.", 
+                required=True,
+                type=str
+            )
+        ]
+    ),
+    update=extend_schema(
+        summary="Update a HKU member",
+        description="Update a HKU member by UID. CEDARS specialists can update any member. HKU members can only update their own details (matching UID in role).",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role with ID (format: 'hku_member:uid' or 'cedars_specialist[:id]') identifying the requester.", 
+                required=True,
+                type=str
+            )
+        ]
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a HKU member",
+        description="Partially update a HKU member by UID. CEDARS specialists can update any member. HKU members can only update their own details (matching UID in role).",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role with ID (format: 'hku_member:uid' or 'cedars_specialist[:id]') identifying the requester.", 
+                required=True,
+                type=str
+            )
+        ]
+    ),
+    destroy=extend_schema(
+        summary="Delete HKU member (Specialists Only)",
+        description="Delete a HKU member by UID. Only CEDARS specialists can perform this action.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
+            )
+        ]
+    )
+)
 class HKUMemberViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing HKU members.
-    Provides CRUD operations for HKUMember model.
     """
-    queryset = HKUMember.objects.all().order_by('uid')
+    queryset = HKUMember.objects.all()
     serializer_class = HKUMemberSerializer
-    
-    def get_serializer_class(self):
-        """
-        Return appropriate serializer class based on the action.
-        """
-        if self.action == 'reserve_accommodation':
-            return ReserveAccommodationSerializer
-        elif self.action == 'cancel_reservation':
-            return CancelReservationSerializer
-        elif self.action == 'rate_accommodation':
-            return RateAccommodationSerializer
-        return super().get_serializer_class()
-    
+    lookup_field = 'uid'
+
     def get_permissions(self):
-        """
-        Since authentication is handled by the CEDARS frontend, 
-        we're using AllowAny permission and filtering based on role header/parameter.
-        """
-        return [permissions.AllowAny()]
-    
+        base_perms = []
+        if self.action in ['list', 'create', 'destroy']:
+            role_perms = [IsAnyCEDARSSpecialist]
+        elif self.action in ['retrieve', 'update', 'partial_update', 'reservations']:
+            role_perms = [CanRetrieveUpdateHKUMember]
+        else:
+            role_perms = [permissions.IsAdminUser]
+        return [permission() for permission in base_perms + role_perms]
+
     def list(self, request, *args, **kwargs):
-        """
-        List HKU members.
-        Only CEDARS specialists can list all HKU members.
-        """
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can list all HKU members"},
-                status=status.HTTP_403_FORBIDDEN
-            )
         return super().list(request, *args, **kwargs)
-    
+        
     def retrieve(self, request, *args, **kwargs):
-        """
-        Retrieve an HKU member.
-        HKU members can only retrieve their own profile.
-        CEDARS specialists can retrieve any HKU member.
-        """
-        # Check user role
-        role = request.query_params.get('role', None)
-        current_user_id = request.query_params.get('current_user_id', None)
-        
-        if role == 'cedars_specialist':
-            # CEDARS specialists can access any HKU member
-            pass
-        elif role == 'hku_member' and current_user_id:
-            # HKU members can only access their own profile
-            if kwargs.get('pk') != current_user_id:
-                return Response(
-                    {"error": "You can only access your own profile"},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-        else:
-            return Response(
-                {"error": "You don't have permission to access HKU member profiles"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-            
         return super().retrieve(request, *args, **kwargs)
-    
+        
     def create(self, request, *args, **kwargs):
-        """
-        Create a new HKU member.
-        Only CEDARS specialists can create HKU members directly.
-        """
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can create HKU members directly"},
-                status=status.HTTP_403_FORBIDDEN
-            )
         return super().create(request, *args, **kwargs)
-    
+        
     def update(self, request, *args, **kwargs):
-        """
-        Update an HKU member.
-        HKU members can only update their own profile.
-        CEDARS specialists can update any HKU member.
-        """
-        # Check user role
-        role = request.query_params.get('role', None)
-        current_user_id = request.query_params.get('current_user_id', None)
-        
-        if role == 'cedars_specialist':
-            # CEDARS specialists can update any HKU member
-            pass
-        elif role == 'hku_member' and current_user_id:
-            # HKU members can only update their own profile
-            if kwargs.get('pk') != current_user_id:
-                return Response(
-                    {"error": "You can only update your own profile"},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-        else:
-            return Response(
-                {"error": "You don't have permission to update HKU member profiles"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-            
         return super().update(request, *args, **kwargs)
-    
+        
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return super().update(request, *args, **kwargs)
+        
     def destroy(self, request, *args, **kwargs):
-        """
-        Delete an HKU member.
-        Only CEDARS specialists can delete HKU members.
-        """
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can delete HKU members"},
-                status=status.HTTP_403_FORBIDDEN
-            )
         return super().destroy(request, *args, **kwargs)
-    
-    @action(detail=True, methods=['get'])
-    def reservations(self, request, pk=None):
-        """
-        Get all reservations for a specific HKU member.
         
-        Args:
-            request: The HTTP request
-            pk: The primary key of the HKU member
-            
-        Returns:
-            Response: List of reservations for the member
-        """
-        # Check if role parameter is provided
-        role = request.query_params.get('role', None)
-        current_user_id = request.query_params.get('current_user_id', None)
-        
-        # If not a CEDARS specialist or the member themselves, return 403
-        if role != 'cedars_specialist' and pk != current_user_id:
-            return Response({"error": "You don't have permission to view these reservations"}, 
-                          status=status.HTTP_403_FORBIDDEN)
-        
-        # For non-existing members, just return empty list
-        try:
-            member = self.get_object()
-        except Exception:
-            return Response([])
-            
+    @extend_schema(
+        summary="List reservations for a HKU member",
+        description="Get all reservations for a specific HKU member (identified by UID in URL).\nHKU members can only view their own reservations (matching UID in role). CEDARS specialists can view any HKU member's reservations.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role with ID (format: 'hku_member:uid' or 'cedars_specialist:id') identifying the requester.", 
+                required=True,
+                type=str
+            ),
+            OpenApiParameter(
+                name="status", 
+                description="Filter reservations by status", 
+                required=False,
+                type=str,
+                enum=["pending", "confirmed", "cancelled", "completed"]
+            )
+        ],
+        responses={
+            200: ReservationSerializer(many=True),
+            403: OpenApiTypes.OBJECT
+        }
+    )
+    @action(detail=True, methods=['get'], permission_classes=[CanRetrieveUpdateHKUMember])
+    def reservations(self, request, uid=None):
+        member = self.get_object()
         reservations = Reservation.objects.filter(member=member)
         
-        # Filter by status if provided
-        status_filter = request.query_params.get('status', None)
-        if status_filter:
-            reservations = reservations.filter(status=status_filter)
+        if 'status' in request.query_params:
+            reservations = reservations.filter(status=request.query_params['status'])
             
-        # Order by start date descending (most recent first)
-        reservations = reservations.order_by('-start_date')
-        
         serializer = ReservationSerializer(reservations, many=True)
         return Response(serializer.data)
-        
-    @action(detail=True, methods=['get', 'post'])
-    def reserve_accommodation(self, request, pk=None):
-        """
-        Reserve an accommodation for a specific HKU member.
-        
-        Args:
-            request: The HTTP request containing accommodation_id, start_date, end_date
-            pk: The primary key of the HKU member
-            
-        Returns:
-            Response: The created reservation or error message
-        """
-        # For GET requests, just display the form with correct fields
-        if request.method == 'GET':
-            # Use the serializer to display the correct form fields
-            serializer = self.get_serializer()
-            return Response(serializer.data)
 
-        # Check if HKU member or CEDARS specialist role
-        role = request.query_params.get('role', None)
-        current_user_id = request.query_params.get('current_user_id', None)
-        
-        # Only allow if current user is this member or a CEDARS specialist
-        if role != 'cedars_specialist' and (role != 'hku_member' or pk != current_user_id):
-            return Response(
-                {"error": "You don't have permission to make reservations for this member"},
-                status=status.HTTP_403_FORBIDDEN
+@extend_schema_view(
+    list=extend_schema(
+        summary="List CEDARS specialists (Specialists Only)",
+        description="List all CEDARS specialists. Only CEDARS specialists can perform this action.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
             )
-        
-        # Auto-create the HKU member if they don't exist yet
-        # This assumes the UID from CEDARS is always valid and the user exists in the HKU system
-        try:
-            member = self.get_object()
-        except Exception:
-            if pk == current_user_id and role == 'hku_member':
-                # Create the member with the provided UID
-                # Get name from request data or use a default
-                name = request.data.get('member_name', f"HKU Member {pk}")
-                member = HKUMember.objects.create(uid=pk, name=name)
-            else:
-                return Response(
-                    {"error": "HKU member not found"},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            
-        accommodation_id = request.data.get('accommodation_id')
-        start_date = request.data.get('start_date')
-        end_date = request.data.get('end_date')
-        
-        if not all([accommodation_id, start_date, end_date]):
-            return Response(
-                {"error": "accommodation_id, start_date, and end_date are required"},
-                status=status.HTTP_400_BAD_REQUEST
+        ]
+    ),
+    create=extend_schema(
+        summary="Create CEDARS specialist (Specialists Only)",
+        description="Create a new CEDARS specialist. Only CEDARS specialists can create new specialists.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
             )
-            
-        try:
-            reservation = member.reserveAccommodation(
-                accommodation_id=accommodation_id,
-                start_date=start_date,
-                end_date=end_date
+        ]
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve CEDARS specialist (Specialists Only)",
+        description="Retrieve a CEDARS specialist by ID. Only CEDARS specialists can view specialist details.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
             )
-            serializer = ReservationSerializer(reservation)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=True, methods=['get', 'post'])
-    def cancel_reservation(self, request, pk=None):
-        """
-        Cancel a reservation for a specific HKU member.
-        
-        Args:
-            request: The HTTP request containing reservation_id
-            pk: The primary key of the HKU member
-            
-        Returns:
-            Response: The cancelled reservation or error message
-        """
-        # For GET requests, just display the form with correct fields
-        if request.method == 'GET':
-            # Use the serializer to display the correct form fields
-            serializer = self.get_serializer()
-            return Response(serializer.data)
-
-        # Check if HKU member or CEDARS specialist role
-        role = request.query_params.get('role', None)
-        current_user_id = request.query_params.get('current_user_id', None)
-        
-        # Only allow if current user is this member or a CEDARS specialist
-        if role != 'cedars_specialist' and (role != 'hku_member' or pk != current_user_id):
-            return Response(
-                {"error": "You don't have permission to cancel reservations for this member"},
-                status=status.HTTP_403_FORBIDDEN
+        ]
+    ),
+    update=extend_schema(
+        summary="Update CEDARS specialist (Specialists Only)",
+        description="Update a CEDARS specialist by ID. Only CEDARS specialists can update specialists.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
             )
-            
-        try:
-            member = self.get_object()
-        except Exception:
-            return Response(
-                {"error": "HKU member not found"},
-                status=status.HTTP_404_NOT_FOUND
+        ]
+    ),
+    partial_update=extend_schema(
+        summary="Partially update CEDARS specialist (Specialists Only)",
+        description="Partially update a CEDARS specialist by ID. Only CEDARS specialists can update specialists.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
             )
-            
-        reservation_id = request.data.get('reservation_id')
-        
-        if not reservation_id:
-            return Response(
-                {"error": "reservation_id is required"},
-                status=status.HTTP_400_BAD_REQUEST
+        ]
+    ),
+    destroy=extend_schema(
+        summary="Delete CEDARS specialist (Specialists Only)",
+        description="Delete a CEDARS specialist by ID. Only CEDARS specialists can delete specialists.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
             )
-            
-        try:
-            reservation = member.cancelReservation(reservation_id=reservation_id)
-            serializer = ReservationSerializer(reservation)
-            return Response(serializer.data)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-            
-    @action(detail=True, methods=['get', 'post'])
-    def rate_accommodation(self, request, pk=None):
-        """
-        Rate an accommodation based on a reservation.
-        
-        Args:
-            request: The HTTP request containing reservation_id, score, and optional comment
-            pk: The primary key of the HKU member
-            
-        Returns:
-            Response: The created rating or error message
-        """
-        # For GET requests, just display the form with correct fields
-        if request.method == 'GET':
-            # Use the serializer to display the correct form fields
-            serializer = self.get_serializer()
-            return Response(serializer.data)
-
-        # Check if HKU member role
-        role = request.query_params.get('role', None)
-        current_user_id = request.query_params.get('current_user_id', None)
-        
-        # Only allow if current user is this member
-        if role != 'hku_member' or pk != current_user_id:
-            return Response(
-                {"error": "You don't have permission to rate accommodations for this member"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-            
-        try:
-            member = self.get_object()
-        except Exception:
-            return Response(
-                {"error": "HKU member not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-            
-        reservation_id = request.data.get('reservation_id')
-        score = request.data.get('score')
-        comment = request.data.get('comment')
-        
-        if not all([reservation_id, score]):
-            return Response(
-                {"error": "reservation_id and score are required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            
-        try:
-            rating = member.rateAccommodation(
-                reservation_id=reservation_id,
-                score=int(score),
-                comment=comment
-            )
-            serializer = RatingSerializer(rating)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
+        ]
+    )
+)
 class CEDARSSpecialistViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing CEDARS specialists.
-    Provides CRUD operations for CEDARSSpecialist model.
+    Requires CEDARS Specialist role for all actions.
     """
     queryset = CEDARSSpecialist.objects.all().order_by('id')
     serializer_class = CEDARSSpecialistSerializer
-    
-    def get_serializer_class(self):
-        """
-        Return appropriate serializer class based on the action.
-        """
-        if self.action == 'add_accommodation':
-            return AccommodationSerializer
-        elif self.action == 'update_accommodation':
-            return UpdateAccommodationSerializer
-        elif self.action == 'cancel_reservation':
-            return CancelReservationSerializer
-        return super().get_serializer_class()
-    
-    def get_permissions(self):
-        """
-        Since authentication is handled by the CEDARS frontend, 
-        we're using AllowAny permission and filtering based on role header/parameter.
-        """
-        return [permissions.AllowAny()]
-    
+    permission_classes = [IsAnyCEDARSSpecialist]
+
     def list(self, request, *args, **kwargs):
-        """
-        List CEDARS specialists.
-        Only CEDARS specialists can list all specialists.
-        """
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can list all specialists"},
-                status=status.HTTP_403_FORBIDDEN
-            )
         return super().list(request, *args, **kwargs)
     
     def retrieve(self, request, *args, **kwargs):
-        """
-        Retrieve a CEDARS specialist.
-        Only CEDARS specialists can retrieve specialist details.
-        """
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can view specialist details"},
-                status=status.HTTP_403_FORBIDDEN
-            )
         return super().retrieve(request, *args, **kwargs)
     
     def create(self, request, *args, **kwargs):
-        """
-        Create a new CEDARS specialist.
-        Only CEDARS specialists can create new specialists.
-        """
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can create new specialists"},
-                status=status.HTTP_403_FORBIDDEN
-            )
         return super().create(request, *args, **kwargs)
     
     def update(self, request, *args, **kwargs):
-        """
-        Update a CEDARS specialist.
-        Only CEDARS specialists can update specialist details.
-        """
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can update specialist details"},
-                status=status.HTTP_403_FORBIDDEN
-            )
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
         return super().update(request, *args, **kwargs)
     
     def destroy(self, request, *args, **kwargs):
-        """
-        Delete a CEDARS specialist.
-        Only CEDARS specialists can delete specialists.
-        """
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can delete specialists"},
-                status=status.HTTP_403_FORBIDDEN
-            )
         return super().destroy(request, *args, **kwargs)
 
-    @action(detail=True, methods=['get'])
-    def managed_accommodations(self, request, pk=None):
-        """
-        Get all accommodations managed by a specific CEDARS specialist.
-        
-        Args:
-            request: The HTTP request
-            pk: The primary key of the CEDARS specialist
-            
-        Returns:
-            Response: List of accommodations managed by the specialist
-        """
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can view managed accommodations"},
-                status=status.HTTP_403_FORBIDDEN
+@extend_schema_view(
+    list=extend_schema(
+        summary="List reservations (Specialists Only)",
+        description="List all reservations. Only CEDARS specialists can list all reservations. HKU members should use `/hku-members/{uid}/reservations/`. Uses manual role check.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
+            ),
+            OpenApiParameter(
+                name="member_id", 
+                description="Filter by HKU member UID", 
+                required=False,
+                type=str
+            ),
+            OpenApiParameter(
+                name="accommodation_id", 
+                description="Filter by accommodation ID", 
+                required=False,
+                type=int
+            ),
+            OpenApiParameter(
+                name="status", 
+                description="Filter by reservation status", 
+                required=False,
+                type=str,
+                enum=["pending", "confirmed", "cancelled", "completed"]
             )
-            
-        specialist = self.get_object()
-        accommodations = Accommodation.objects.filter(specialist=specialist)
-        serializer = AccommodationSerializer(accommodations, many=True)
-        return Response(serializer.data)
-        
-    @action(detail=True, methods=['get', 'post'])
-    def add_accommodation(self, request, pk=None):
-        """
-        Add a new accommodation managed by this specialist.
-        
-        Args:
-            request: The HTTP request containing accommodation data
-            pk: The primary key of the CEDARS specialist
-            
-        Returns:
-            Response: The created accommodation or error message
-        """
-        # For GET requests, just display the form with correct fields
-        if request.method == 'GET':
-            # Use the serializer to display the correct form fields
-            serializer = self.get_serializer()
-            return Response(serializer.data)
-
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can add accommodations"},
-                status=status.HTTP_403_FORBIDDEN
+        ]
+    ),
+    create=extend_schema(exclude=True), # Exclude standard POST, use custom action
+    retrieve=extend_schema(
+        summary="Retrieve a reservation",
+        description="Retrieve details of a specific reservation. HKU members can only retrieve their own reservations. CEDARS specialists can retrieve any reservation. Uses manual role check.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role with ID (format: 'hku_member:uid' or 'cedars_specialist[:id]') identifying the requester.", 
+                required=True,
+                type=str
             )
-            
-        specialist = self.get_object()
-        # Add specialist to the request data
-        request.data['specialist_id'] = specialist.id
-        
-        serializer = AccommodationSerializer(data=request.data)
-        if serializer.is_valid():
-            accommodation = specialist.addAccommodation(serializer.validated_data)
-            result_serializer = AccommodationSerializer(accommodation)
-            return Response(result_serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-    @action(detail=True, methods=['get', 'post'])
-    def update_accommodation(self, request, pk=None):
-        """
-        Update an existing accommodation managed by this specialist.
-        
-        Args:
-            request: The HTTP request containing accommodation_id and updated data
-            pk: The primary key of the CEDARS specialist
-            
-        Returns:
-            Response: The updated accommodation or error message
-        """
-        # For GET requests, just display the form with correct fields
-        if request.method == 'GET':
-            # Use the serializer to display the correct form fields
-            serializer = self.get_serializer()
-            return Response(serializer.data)
-            
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can update accommodations"},
-                status=status.HTTP_403_FORBIDDEN
+        ]
+    ),
+    update=extend_schema(
+        summary="Update reservation (Specialists Only)",
+        description="Update a reservation. Only CEDARS specialists can perform this action. Uses manual role check.",
+        parameters=[
+            OpenApiParameter(name="role", description="User role (must be 'cedars_specialist[:id]')", required=True, type=str)
+        ]
+    ),
+    partial_update=extend_schema(exclude=True), # Excluded - Use PUT for updates
+    destroy=extend_schema(
+        summary="Delete reservation (Specialists Only)",
+        description="Delete a reservation. Only CEDARS specialists can delete reservations. Uses manual role check.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
             )
-            
-        specialist = self.get_object()
-        accommodation_id = request.data.get('accommodation_id')
-        
-        if not accommodation_id:
-            return Response(
-                {"error": "accommodation_id is required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            
-        try:
-            # Remove accommodation_id from the data to update
-            update_data = request.data.copy()
-            update_data.pop('accommodation_id')
-            
-            accommodation = specialist.updateAccommodation(
-                accommodation_id=accommodation_id,
-                updated_data=update_data
-            )
-            serializer = AccommodationSerializer(accommodation)
-            return Response(serializer.data)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-    
-    @action(detail=True, methods=['get', 'post'])
-    def cancel_reservation(self, request, pk=None):
-        """
-        Cancel a reservation as a CEDARS specialist.
-        
-        Args:
-            request: The HTTP request containing reservation_id
-            pk: The primary key of the CEDARS specialist
-            
-        Returns:
-            Response: The cancelled reservation or error message
-        """
-        # For GET requests, just display the form with correct fields
-        if request.method == 'GET':
-            # Use the serializer to display the correct form fields
-            serializer = self.get_serializer()
-            return Response(serializer.data)
-            
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can cancel reservations from this endpoint"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-            
-        specialist = self.get_object()
-        reservation_id = request.data.get('reservation_id')
-        
-        if not reservation_id:
-            return Response(
-                {"error": "reservation_id is required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            
-        try:
-            reservation = specialist.cancelReservation(reservation_id=reservation_id)
-            serializer = ReservationSerializer(reservation)
-            return Response(serializer.data)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
+        ]
+    )
+)
 class ReservationViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing reservations.
-    Provides CRUD operations for Reservation model.
     """
-    queryset = Reservation.objects.all().select_related('member', 'accommodation').order_by('id')
+    queryset = Reservation.objects.all().order_by('-start_date')
     serializer_class = ReservationSerializer
-    
-    def get_serializer_class(self):
-        """
-        Return appropriate serializer class based on the action.
-        """
-        if self.action == 'confirm':
-            return ConfirmReservationSerializer
-        return super().get_serializer_class()
-    
-    def get_permissions(self):
-        """
-        Since authentication is handled by the CEDARS frontend, 
-        we're using AllowAny permission and filtering based on role header/parameter.
-        """
-        return [permissions.AllowAny()]
-    
-    def create(self, request, *args, **kwargs):
-        """
-        Create a new reservation.
-        Only HKU members can create reservations, and they should use the reserve_accommodation endpoint.
-        CEDARS specialists can create reservations on behalf of HKU members.
-        """
-        # Check user role
-        role = request.query_params.get('role', None)
+    permission_classes = []
+
+    @extend_schema(summary="List reservations (Specialists Only)", 
+                   description="List all reservations. Only CEDARS specialists can list all reservations. HKU members should use `/hku-members/{uid}/reservations/`. Uses manual role check.",
+                   parameters=[
+                       OpenApiParameter(name="role", description="User role (must be 'cedars_specialist[:id]')", required=True, type=str),
+                       OpenApiParameter(name="member_id", description="Filter by HKU member UID", required=False, type=str),
+                       OpenApiParameter(name="accommodation_id", description="Filter by accommodation ID", required=False, type=int),
+                       OpenApiParameter(name="status", description="Filter by reservation status", required=False, type=str, enum=["pending", "confirmed", "cancelled", "completed"])
+                   ])
+    def list(self, request, *args, **kwargs):
+        role_type, _ = get_role_and_id_from_request(request)
+        if role_type != 'cedars_specialist':
+            return Response(
+                {"error": "Only CEDARS Specialists can list all reservations from this endpoint."},
+                status=status.HTTP_403_FORBIDDEN
+            )
         
-        if role != 'cedars_specialist' and role != 'hku_member':
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        if 'member_id' in request.query_params:
+            queryset = queryset.filter(member__uid=request.query_params['member_id'])
+        if 'accommodation_id' in request.query_params:
+            queryset = queryset.filter(accommodation_id=request.query_params['accommodation_id'])
+        if 'status' in request.query_params:
+            queryset = queryset.filter(status=request.query_params['status'])
+        
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+        
+    @extend_schema(summary="Retrieve a reservation",
+                   description="Retrieve details of a specific reservation. HKU members can only retrieve their own reservations. CEDARS specialists can retrieve any reservation. Uses manual role check.",
+                   parameters=[
+                       OpenApiParameter(name="role", description="User role with ID (format: 'hku_member:uid' or 'cedars_specialist[:id]')", required=True, type=str)
+                   ])
+    def retrieve(self, request, *args, **kwargs):
+        # --- Manual Role Check (Object Level) ---
+        role_type, role_id = get_role_and_id_from_request(request)
+        if not role_type:
+             return Response({"error": "Role query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+             
+        instance = self.get_object() # Raises 404 if not found
+        
+        allowed = False
+        if role_type == 'cedars_specialist':
+            allowed = True
+        elif role_type == 'hku_member' and role_id:
+            if str(instance.member.uid) == str(role_id):
+                allowed = True
+                
+        if not allowed:
             return Response(
-                {"error": "Only CEDARS specialists or HKU members can create reservations"},
+                {"error": "You do not have permission to access this reservation."},
                 status=status.HTTP_403_FORBIDDEN
             )
-            
-        # For HKU members, redirect to the proper endpoint
-        if role == 'hku_member':
-            return Response(
-                {"error": "HKU members should use the /hku-members/{uid}/reserve_accommodation/ endpoint"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            
-        return super().create(request, *args, **kwargs)
-    
+        # --- End Manual Role Check ---
+
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+    @extend_schema(exclude=True) # Standard POST is excluded, use custom action below
+    def create(self, request, *args, **kwargs):
+        return Response({"detail": "Method \"POST\" not allowed. Use /reservations/create/ instead."}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        
+    @extend_schema(
+        summary="Update reservation (Specialists Only)",
+        description="Update a reservation. Only CEDARS specialists can perform this action. Uses manual role check.",
+        parameters=[
+            OpenApiParameter(name="role", description="User role (must be 'cedars_specialist[:id]')", required=True, type=str)
+        ]
+    )
     def update(self, request, *args, **kwargs):
-        """
-        Update a reservation.
-        Only CEDARS specialists can update reservations directly.
-        """
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
+        # --- Manual Role Check ---
+        role_type, _ = get_role_and_id_from_request(request)
+        if role_type != 'cedars_specialist':
             return Response(
-                {"error": "Only CEDARS specialists can update reservations directly"},
+                {"error": "Only CEDARS Specialists can update reservations."},
                 status=status.HTTP_403_FORBIDDEN
             )
-        return super().update(request, *args, **kwargs)
-    
+        # --- End Manual Role Check ---
+        
+        # Standard update logic (from ModelViewSet)
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        
+        # Add validation to prevent overlap before saving
+        accommodation_id = serializer.validated_data.get('accommodation', instance.accommodation_id)
+        start_date = serializer.validated_data.get('start_date', instance.start_date)
+        end_date = serializer.validated_data.get('end_date', instance.end_date)
+        
+        overlapping = Reservation.objects.filter(
+            accommodation_id=accommodation_id,
+            status__in=['pending', 'confirmed'],
+            start_date__lt=end_date, 
+            end_date__gt=start_date
+        ).exclude(pk=instance.pk).exists() # Exclude self
+
+        if overlapping:
+            return Response({"error": "Updated dates overlap with an existing reservation for this accommodation."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        self.perform_update(serializer)
+
+        if getattr(instance, '_prefetched_objects_cache', None):
+            instance._prefetched_objects_cache = {}
+
+        return Response(serializer.data)
+
+    @extend_schema(exclude=True) # Excluded - Use PUT for updates
+    def partial_update(self, request, *args, **kwargs):
+        # PATCH is disabled for now (returns 405)
+        return Response({"detail": "Method \"PATCH\" not allowed. Use PUT for full updates."}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    @extend_schema(
+        summary="Delete reservation (Specialists Only)",
+        description="Delete a reservation. Only CEDARS specialists can delete reservations. Uses manual role check.",
+        parameters=[
+            OpenApiParameter(name="role", description="User role (must be 'cedars_specialist[:id]')", required=True, type=str)
+        ]
+    )
     def destroy(self, request, *args, **kwargs):
-        """
-        Delete a reservation.
-        Only CEDARS specialists can delete reservations.
-        HKU members should use the cancel_reservation endpoint.
-        """
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
+        role_type, _ = get_role_and_id_from_request(request)
+        if role_type != 'cedars_specialist':
             return Response(
-                {"error": "Only CEDARS specialists can delete reservations directly"},
+                {"error": "Only CEDARS Specialists can delete reservations."},
                 status=status.HTTP_403_FORBIDDEN
             )
         return super().destroy(request, *args, **kwargs)
-    
-    def get_queryset(self):
-        """
-        Get filtered queryset based on query parameters and role.
-        
-        Available filters:
-        - member_id: Filter by HKU member
-        - accommodation_id: Filter by accommodation
-        - status: Filter by reservation status
-        
-        Returns:
-            QuerySet: Filtered queryset of reservations
-        """
-        queryset = super().get_queryset()
-        
-        # Get role from query parameters
-        role = self.request.query_params.get('role', None)
-        current_user_id = self.request.query_params.get('current_user_id', None)
-        
-        # If HKU member role, only show their own reservations
-        if role == 'hku_member' and current_user_id:
-            queryset = queryset.filter(member__uid=current_user_id)
-        # If not CEDARS specialist, limit access
-        elif role != 'cedars_specialist':
-            if self.action == 'list':
-                # Empty queryset for non-specialists
-                queryset = Reservation.objects.none()
-        
-        # Apply other filters
-        if 'member_id' in self.request.query_params:
-            queryset = queryset.filter(member__uid=self.request.query_params['member_id'])
-            
-        if 'accommodation_id' in self.request.query_params:
-            queryset = queryset.filter(accommodation_id=self.request.query_params['accommodation_id'])
-            
-        if 'status' in self.request.query_params:
-            queryset = queryset.filter(status=self.request.query_params['status'])
-            
-        return queryset
-    
-    @action(detail=True, methods=['get', 'post'])
-    def confirm(self, request, pk=None):
-        """
-        Confirm a reservation, changing its status from 'pending' to 'confirmed'.
-        
-        Args:
-            request: The HTTP request
-            pk: The primary key of the reservation
-            
-        Returns:
-            Response: The updated reservation or error message
-        """
-        # For GET requests, just display a form with confirmation message
-        if request.method == 'GET':
-            # Use the serializer to display the correct form fields
-            serializer = self.get_serializer()
-            return Response(serializer.data)
-            
-        # Check if CEDARS specialist role
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can confirm reservations"},
-                status=status.HTTP_403_FORBIDDEN
+
+    @extend_schema(
+        summary="Create a new reservation",
+        description="Create a new reservation. HKU members use 'hku_member:uid' and the system uses the UID. CEDARS specialists use 'cedars_specialist[:id]' and must provide 'member_id' (HKU member UID) in the request body.",
+        request=ReserveAccommodationSerializer,
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role with ID (format: 'hku_member:uid' or 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
             )
-            
-        reservation = self.get_object()
-        
-        if reservation.status != 'pending':
+        ],
+        responses={201: ReservationSerializer}
+    )
+    @action(detail=False, methods=['post'], url_path='create', 
+            authentication_classes=[], permission_classes=[]) # Manual checks inside
+    def create_reservation(self, request, *args, **kwargs):
+        role_type, role_id = get_role_and_id_from_request(request)
+        if not role_type:
+             return Response(
+                 {"error": "Role query parameter is required."},
+                 status=status.HTTP_400_BAD_REQUEST
+             )
+
+        member_uid = None
+        if role_type == 'hku_member' and role_id:
+            member_uid = role_id
+        elif role_type == 'cedars_specialist':
+            member_uid = request.data.get('member_id')
+            if not member_uid:
+                return Response(
+                    {"error": "CEDARS specialists must specify a member_id in the request body when creating a reservation."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
             return Response(
-                {"error": f"Cannot confirm reservation with status '{reservation.status}'. Only pending reservations can be confirmed."},
+                 {"error": f"Invalid role specified: '{request.query_params.get('role')}'"},
+                 status=status.HTTP_400_BAD_REQUEST
+             )
+        
+        try:
+            member = HKUMember.objects.get(uid=member_uid)
+        except HKUMember.DoesNotExist:
+            return Response({"error": f"HKU member with UID {member_uid} not found"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        serializer = ReserveAccommodationSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        accommodation_id = serializer.validated_data.get('accommodation_id')
+        start_date = serializer.validated_data.get('start_date')
+        end_date = serializer.validated_data.get('end_date')
+
+        try:
+            accommodation = Accommodation.objects.get(pk=accommodation_id)
+        except Accommodation.DoesNotExist:
+             return Response({"error": f"Accommodation with ID {accommodation_id} not found"}, status=status.HTTP_400_BAD_REQUEST)
+
+        overlapping = Reservation.objects.filter(
+            accommodation=accommodation,
+            status__in=['pending', 'confirmed'],
+            start_date__lt=end_date, 
+            end_date__gt=start_date
+        ).exists()
+
+        if overlapping:
+            return Response({"error": "Accommodation is not available for the selected dates."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        reservation = Reservation.objects.create(
+            status='pending',
+            start_date=start_date,
+            end_date=end_date,
+            member=member, 
+            accommodation=accommodation
+        )
+        
+        response_serializer = ReservationSerializer(reservation)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+    
+    @extend_schema(
+        summary="Cancel a reservation",
+        description="Cancel an existing reservation. HKU members can cancel their own pending/confirmed reservations before the end date. CEDARS specialists can cancel any reservation. Uses manual role check.",
+        request=None, # No request body expected for cancellation
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role with ID (format: 'hku_member:uid' or 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
+            )
+        ],
+        responses={200: ReservationSerializer, 400: OpenApiTypes.OBJECT, 403: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT}
+    )
+    @action(detail=True, methods=['post'], url_path='cancel', 
+            authentication_classes=[], permission_classes=[]) # Manual checks inside
+    def cancel(self, request, pk=None):
+        role_type, role_id = get_role_and_id_from_request(request)
+        if not role_type:
+             return Response(
+                 {"error": "Role query parameter is required."},
+                 status=status.HTTP_400_BAD_REQUEST
+             )
+
+        try:
+            reservation = self.get_object()
+        except Reservation.DoesNotExist:
+             return Response(
+                 {"error": "Reservation not found."},
+                 status=status.HTTP_404_NOT_FOUND
+             )
+
+        allowed = False
+        if role_type == 'cedars_specialist':
+             allowed = True
+        elif role_type == 'hku_member' and role_id:
+             if hasattr(reservation, 'member') and str(reservation.member.uid) == str(role_id):
+                 # Add check: Cannot cancel if reservation end date has passed
+                 if reservation.end_date < datetime.now().date():
+                     return Response({"error": "Cannot cancel a reservation whose end date has passed."}, status=status.HTTP_400_BAD_REQUEST)
+                 reservation.status = 'cancelled'
+                 reservation.save(update_fields=['status'])
+                 print(f"Reservation {pk} cancelled by HKU Member {role_id}") # Debug
+                 return Response({"status": f"Reservation {pk} cancelled successfully."}, status=status.HTTP_200_OK)
+             else:
+                 print(f"HKU Member {role_id} mismatch or no member associated with Reservation {pk}") # Debug
+                 return Response({"error": "You can only cancel your own reservations."}, status=status.HTTP_403_FORBIDDEN)
+        else:
+             return Response(
+                 {"error": f"Invalid role specified: '{request.query_params.get('role')}'"},
+                 status=status.HTTP_400_BAD_REQUEST
+             )
+        
+        if not allowed:
+             return Response(
+                 {"error": "You do not have permission to cancel this reservation."},
+                 status=status.HTTP_403_FORBIDDEN
+             )
+        
+        if reservation.status == 'cancelled':
+            return Response(
+                {"error": "Reservation is already cancelled."},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        old_status = reservation.status
-        reservation.status = 'confirmed'
-        reservation.save()
-        
-        # Send reservation update notification
-        from .utils.notifications import send_reservation_update
-        send_reservation_update(reservation, old_status)
+        reservation.status = 'cancelled'
+        reservation.cancelled_by = role_type
+        reservation.save(update_fields=['status', 'cancelled_by'])
         
         serializer = self.get_serializer(reservation)
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List ratings",
+        description="List ratings. CEDARS specialists can list all ratings and filter. HKU members can only list their own ratings. Uses manual role check.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role with ID (format: 'hku_member:uid' or 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
+            ),
+            OpenApiParameter(
+                name="reservation_id", 
+                description="Filter by reservation ID", 
+                required=False,
+                type=int
+            ),
+            OpenApiParameter(
+                name="accommodation_id", 
+                description="Filter by accommodation ID", 
+                required=False,
+                type=int
+            ),
+            OpenApiParameter(
+                name="member_id", 
+                description="Filter by HKU member UID (only usable by CEDARS Specialists)", 
+                required=False,
+                type=str
+            )
+        ]
+    ),
+    create=extend_schema(exclude=True), # Standard POST is excluded, use custom action below
+    retrieve=extend_schema(
+        summary="Retrieve a rating",
+        description="Retrieve details of a specific rating. HKU members can only retrieve ratings for their own reservations. CEDARS specialists can retrieve any rating. Uses manual role check.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role with ID (format: 'hku_member:uid' or 'cedars_specialist[:id]') identifying the requester.", 
+                required=True,
+                type=str
+            )
+        ]
+    ),
+    update=extend_schema(
+        summary="Update rating (Specialists Only)",
+        description="Update a rating. Only CEDARS specialists can perform this action. Uses manual role check.",
+        parameters=[
+            OpenApiParameter(name="role", description="User role (must be 'cedars_specialist[:id]')", required=True, type=str)
+        ]
+    ),
+    partial_update=extend_schema(
+        summary="Partially update rating (Specialists Only)",
+        description="Partially update a rating. Only CEDARS specialists can perform this action. Uses manual role check.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
+            )
+        ]
+    ),
+    destroy=extend_schema(
+        summary="Delete rating (Specialists Only)",
+        description="Delete a rating. Only CEDARS specialists can delete ratings. Uses manual role check.",
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role (must be 'cedars_specialist[:id]')", 
+                required=True,
+                type=str
+            )
+        ]
+    )
+)
 class RatingViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing ratings.
-    Provides CRUD operations for Rating model.
     """
-    queryset = Rating.objects.all().select_related('reservation').order_by('id')
+    queryset = Rating.objects.all().select_related('reservation__member', 'reservation__accommodation').order_by('id')
     serializer_class = RatingSerializer
-    
-    def get_permissions(self):
-        """
-        Since authentication is handled by the CEDARS frontend, 
-        we're using AllowAny permission and filtering based on role header/parameter.
-        """
-        return [permissions.AllowAny()]
-    
+
+    @extend_schema(summary="List ratings",
+                   description="List ratings. CEDARS specialists can list all ratings and filter. HKU members can only list their own ratings. Uses manual role check.",
+                   parameters=[
+                       OpenApiParameter(name="role", description="User role with ID (format: 'hku_member:uid' or 'cedars_specialist[:id]')", required=True, type=str),
+                       OpenApiParameter(name="reservation_id", description="Filter by reservation ID", required=False, type=int),
+                       OpenApiParameter(name="accommodation_id", description="Filter by accommodation ID", required=False, type=int),
+                       OpenApiParameter(name="member_id", description="Filter by HKU member UID (only usable by Specialists)", required=False, type=str)
+                   ])
     def list(self, request, *args, **kwargs):
-        """
-        List all ratings.
-        Only HKU members and CEDARS specialists can list ratings.
-        """
-        # Check if role parameter is provided
-        role = request.query_params.get('role', None)
-        if role not in ['cedars_specialist', 'hku_member']:
-            return Response(
-                {"error": "Only HKU members or CEDARS specialists can list ratings"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        return super().list(request, *args, **kwargs)
-    
-    def retrieve(self, request, *args, **kwargs):
-        """
-        Retrieve a specific rating.
-        Only HKU members and CEDARS specialists can retrieve ratings.
-        """
-        # Check if role parameter is provided
-        role = request.query_params.get('role', None)
-        if role not in ['cedars_specialist', 'hku_member']:
-            return Response(
-                {"error": "Only HKU members or CEDARS specialists can retrieve ratings"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        return super().retrieve(request, *args, **kwargs)
-    
-    def create(self, request, *args, **kwargs):
-        """
-        Create a new rating.
-        Only HKU members can create ratings for their own completed reservations.
-        """
-        # Check if HKU member role
-        role = request.query_params.get('role', None)
-        current_user_id = request.query_params.get('current_user_id', None)
+        role_type, role_id = get_role_and_id_from_request(request)
+        if not role_type:
+             return Response({"error": "Role query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+             
+        queryset = self.get_queryset()
         
-        if role != 'hku_member' or not current_user_id:
+        if role_type == 'hku_member':
+            if not role_id:
+                 return Response({"error": "HKU member role requires a UID (hku_member:uid)."}, status=status.HTTP_400_BAD_REQUEST)
+            queryset = queryset.filter(reservation__member__uid=role_id)
+        elif role_type == 'cedars_specialist':
+            # Specialists can filter by member_id if provided
+            if 'member_id' in request.query_params:
+                queryset = queryset.filter(reservation__member__uid=request.query_params['member_id'])
+        else:
+             return Response(
+                 {"error": "Invalid role specified for listing ratings."}, 
+                 status=status.HTTP_403_FORBIDDEN
+             )
+             
+        # Common filters
+        if 'reservation_id' in request.query_params:
+            queryset = queryset.filter(reservation_id=request.query_params['reservation_id'])
+        if 'accommodation_id' in request.query_params:
+            queryset = queryset.filter(reservation__accommodation_id=request.query_params['accommodation_id'])
+        
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+        
+    @extend_schema(summary="Retrieve a rating",
+                   description="Retrieve details of a specific rating. HKU members can only retrieve ratings for their own reservations. CEDARS specialists can retrieve any rating. Uses manual role check.",
+                   parameters=[
+                       OpenApiParameter(name="role", description="User role with ID (format: 'hku_member:uid' or 'cedars_specialist[:id]')", required=True, type=str)
+                   ])
+    def retrieve(self, request, *args, **kwargs):
+        # --- Manual Role Check (Object Level) ---
+        role_type, role_id = get_role_and_id_from_request(request)
+        if not role_type:
+             return Response({"error": "Role query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+             
+        instance = self.get_object() # Raises 404 if not found
+        
+        allowed = False
+        if role_type == 'cedars_specialist':
+            allowed = True
+        elif role_type == 'hku_member' and role_id:
+            if str(instance.reservation.member.uid) == str(role_id):
+                allowed = True
+                
+        if not allowed:
             return Response(
-                {"error": "Only HKU members can create ratings"},
+                {"error": "You do not have permission to access this rating."},
                 status=status.HTTP_403_FORBIDDEN
             )
-            
-        # Check if the reservation belongs to the current user
-        reservation_id = request.data.get('reservation')
-        if not reservation_id:
+        # --- End Manual Role Check ---
+
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+    @extend_schema(exclude=True) # Standard POST is excluded, use custom action below
+    def create(self, request, *args, **kwargs):
+        return Response({"detail": "Method \"POST\" not allowed. Use /ratings/create/ instead."}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    @extend_schema(
+        summary="Update rating (Specialists Only)",
+        description="Update a rating. Only CEDARS specialists can perform this action. Uses manual role check.",
+        parameters=[
+            OpenApiParameter(name="role", description="User role (must be 'cedars_specialist[:id]')", required=True, type=str)
+        ]
+    )
+    def update(self, request, *args, **kwargs):
+        # --- Manual Role Check ---
+        role_type, _ = get_role_and_id_from_request(request)
+        if role_type != 'cedars_specialist':
             return Response(
-                {"error": "reservation_id is required"},
+                {"error": "Only CEDARS Specialists can update ratings."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        # --- End Manual Role Check ---
+        
+        # Standard update logic (from ModelViewSet)
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        if getattr(instance, '_prefetched_objects_cache', None):
+            # If 'prefetch_related' has been used, ensure the cache is cleared
+            instance._prefetched_objects_cache = {}
+
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="Partially update rating (Specialists Only)",
+        description="Partially update a rating. Only CEDARS specialists can perform this action. Uses manual role check.",
+        parameters=[
+            OpenApiParameter(name="role", description="User role (must be 'cedars_specialist[:id]')", required=True, type=str)
+        ]
+    )
+    def partial_update(self, request, *args, **kwargs):
+        # --- Manual Role Check ---
+        role_type, _ = get_role_and_id_from_request(request)
+        if role_type != 'cedars_specialist':
+            return Response(
+                {"error": "Only CEDARS Specialists can update ratings."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        # --- End Manual Role Check ---
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs) # Reuse the PUT logic
+
+    @extend_schema(
+        summary="Delete rating (Specialists Only)",
+        description="Delete a rating. Only CEDARS specialists can delete ratings. Uses manual role check.",
+        parameters=[
+            OpenApiParameter(name="role", description="User role (must be 'cedars_specialist[:id]')", required=True, type=str)
+        ]
+    )
+    def destroy(self, request, *args, **kwargs):
+        role_type, _ = get_role_and_id_from_request(request)
+        if role_type != 'cedars_specialist':
+            return Response(
+                {"error": "Only CEDARS Specialists can delete ratings."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+        
+    @extend_schema(
+        summary="Create a new rating (HKU Members Only)",
+        description="Rate an accommodation for a completed reservation. Only the HKU member associated with the reservation (matching UID in role) can create a rating. Uses manual role check.",
+        request=RateAccommodationSerializer,
+        parameters=[
+            OpenApiParameter(
+                name="role", 
+                description="User role with ID (format: 'hku_member:uid')", 
+                required=True,
+                type=str
+            )
+        ],
+        responses={
+            201: RatingSerializer,
+            400: OpenApiTypes.OBJECT,
+            403: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT
+        }
+    )
+    @action(detail=False, methods=['post'], url_path='create',
+            authentication_classes=[],
+            permission_classes=[]) # Manual checks inside
+    def create_rating(self, request):
+        role_type, role_id = get_role_and_id_from_request(request)
+        if role_type != 'hku_member' or not role_id:
+            return Response(
+                {"error": "Only HKU Members with a valid UID can create ratings.", "role_provided": request.query_params.get('role')},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+        reservation_id = serializer.validated_data.get('reservation_id')
+        try:
+            reservation = Reservation.objects.select_related('member').get(
+                pk=reservation_id, 
+                member__uid=role_id 
+            ) 
+        except Reservation.DoesNotExist:
+            return Response({"error": "Reservation not found or does not belong to this user."}, status=status.HTTP_404_NOT_FOUND)
+            
+        today = datetime.now().date()
+        if reservation.status in ['pending', 'confirmed'] and reservation.end_date < today:
+            reservation.status = 'completed'
+            reservation.save(update_fields=['status'])
+        elif reservation.status != 'completed':
+            return Response({"error": f"You can only rate completed reservations. Current status: {reservation.status}"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if Rating.objects.filter(reservation=reservation).exists():
+            return Response(
+                {"error": "A rating already exists for this reservation"},
                 status=status.HTTP_400_BAD_REQUEST
             )
             
-        try:
-            reservation = Reservation.objects.get(id=reservation_id)
-            if reservation.member.uid != current_user_id:
-                return Response(
-                    {"error": "You can only rate your own reservations"},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-                
-            if reservation.status != 'completed':
-                return Response(
-                    {"error": "You can only rate completed reservations"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-        except Reservation.DoesNotExist:
-            return Response(
-                {"error": "Reservation not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-            
-        return super().create(request, *args, **kwargs)
-    
-    def update(self, request, *args, **kwargs):
-        """
-        Update a rating.
-        HKU members can only update their own ratings.
-        CEDARS specialists can update any rating.
-        """
-        # Check user role
-        role = request.query_params.get('role', None)
-        current_user_id = request.query_params.get('current_user_id', None)
+        score = serializer.validated_data.get('score')
+        comment = serializer.validated_data.get('comment', '')
         
-        if role == 'cedars_specialist':
-            # CEDARS specialists can update any rating
-            pass
-        elif role == 'hku_member' and current_user_id:
-            # HKU members can only update their own ratings
-            rating = self.get_object()
-            if rating.reservation.member.uid != current_user_id:
-                return Response(
-                    {"error": "You can only update your own ratings"},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-        else:
-            return Response(
-                {"error": "You don't have permission to update ratings"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-            
-        return super().update(request, *args, **kwargs)
-    
-    def destroy(self, request, *args, **kwargs):
-        """
-        Delete a rating.
-        HKU members can delete their own ratings.
-        CEDARS specialists can delete any rating.
-        """
-        # Check user role
-        role = request.query_params.get('role', None)
-        current_user_id = request.query_params.get('current_user_id', None)
+        rating = Rating.objects.create(
+            score=score,
+            comment=comment,
+            date_rated=today,
+            reservation=reservation
+        )
         
-        if role == 'cedars_specialist':
-            # CEDARS specialists can delete any rating
-            pass
-        elif role == 'hku_member' and current_user_id:
-            # HKU members can only delete their own ratings
-            rating = self.get_object()
-            if rating.reservation.member.uid != current_user_id:
-                return Response(
-                    {"error": "You can only delete your own ratings"},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-        else:
-            return Response(
-                {"error": "You don't have permission to delete ratings"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-            
-        return super().destroy(request, *args, **kwargs)
-    
-    def get_queryset(self):
-        """
-        Get filtered queryset based on query parameters.
-        
-        Available filters:
-        - reservation_id: Filter by reservation
-        - accommodation_id: Filter by accommodation (via reservation)
-        - member_id: Filter by HKU member (via reservation)
-        
-        Returns:
-            QuerySet: Filtered queryset of ratings
-        """
-        queryset = super().get_queryset()
-        
-        if 'reservation_id' in self.request.query_params:
-            queryset = queryset.filter(reservation_id=self.request.query_params['reservation_id'])
-            
-        if 'accommodation_id' in self.request.query_params:
-            queryset = queryset.filter(reservation__accommodation_id=self.request.query_params['accommodation_id'])
-            
-        if 'member_id' in self.request.query_params:
-            queryset = queryset.filter(reservation__member__uid=self.request.query_params['member_id'])
-            
-        return queryset
-
-@api_view(['GET', 'POST'])
-def add_accommodation(request):
-    """
-    API endpoint for adding new accommodations.
-    
-    Methods:
-        GET: Returns an empty serializer for form rendering
-        POST: Creates a new accommodation with geocoded address
-        
-    Args:
-        request: The HTTP request object
-        
-    Returns:
-        Response: 
-            - GET: Empty serializer data
-            - POST: Created accommodation data or validation errors
-    """
-    # Check if CEDARS specialist role for POST
-    if request.method == 'POST':
-        role = request.query_params.get('role', None)
-        if role != 'cedars_specialist':
-            return Response(
-                {"error": "Only CEDARS specialists can add accommodations"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-            
-        serializer = AccommodationSerializer(data=request.data)
-        if serializer.is_valid():
-            # First save the accommodation with the provided data
-            accommodation = serializer.save()
-            
-            # Then attempt to geocode the address
-            if accommodation.address:
-                lat, lng, geo = geocode_address(accommodation.address)
-                if lat is not None and lng is not None and geo is not None:
-                    accommodation.latitude = lat
-                    accommodation.longitude = lng
-                    accommodation.geo_address = geo
-                    accommodation.save()
-            
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    else:
-        # For GET requests, just return an empty serializer to render the form
-        serializer = AccommodationSerializer()
-        return Response(serializer.initial_data)
+        response_serializer = RatingSerializer(rating)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)

@@ -6,114 +6,229 @@ based on user roles (HKU Member, CEDARS Specialist, etc.).
 """
 
 from rest_framework import permissions
+from .models import Reservation, Rating, HKUMember, Accommodation # Import necessary models
+from datetime import datetime
 
-class IsHKUMember(permissions.BasePermission):
+# Helper function to extract role and ID (moved here for reusability)
+def get_role_and_id_from_request(request):
     """
-    Permission to only allow HKU members to access their own resources.
+    Extract role type and ID/UID from the 'role' query parameter.
+    Returns: tuple (role_type, role_id) or (None, None) if invalid/missing
     """
-    
-    def has_permission(self, request, view):
-        """
-        Check if the user is authenticated and is a HKU member.
-        """
-        return request.user.is_authenticated and hasattr(request.user, 'hkumember')
-    
-    def has_object_permission(self, request, view, obj):
-        """
-        Check if the HKU member is accessing their own resources.
+    role_param = request.query_params.get('role', '')
+    if not role_param:
+        return None, None # Role is required
         
-        For reservations, check if the reservation belongs to the member.
-        For other objects, defer to the view for more specific checks.
-        """
-        if not request.user.is_authenticated or not hasattr(request.user, 'hkumember'):
-            return False
-            
-        # If this is a reservation, check that it belongs to this member
-        if hasattr(obj, 'member'):
-            return obj.member.uid == request.user.hkumember.uid
-            
-        # If it's the member themselves, check that it's the same member
-        if hasattr(obj, 'uid'):
-            return obj.uid == request.user.hkumember.uid
-            
-        return False
+    if ':' in role_param:
+        role_type, role_id = role_param.split(':', 1)
+        return role_type.lower(), role_id
+    else:
+        # Allow role type without ID only if it's cedars_specialist for specific permissive actions
+        if role_param.lower() == 'cedars_specialist':
+             return role_param.lower(), None
+        else: # HKU members always require UID
+             return None, None # Invalid format for non-specialist roles
 
-class IsCEDARSSpecialist(permissions.BasePermission):
+class BaseRolePermission(permissions.BasePermission):
     """
-    Permission to only allow CEDARS specialists to perform certain actions.
+    Base class for permissions checking the 'role' query parameter.
     """
-    
-    def has_permission(self, request, view):
-        """
-        Check if the user is authenticated and is a CEDARS specialist.
-        """
-        return request.user.is_authenticated and hasattr(request.user, 'cedarsspecialist')
-    
-    def has_object_permission(self, request, view, obj):
-        """
-        CEDARS specialists have access to all objects for now.
-        More specific checks can be added in the future.
-        """
-        return request.user.is_authenticated and hasattr(request.user, 'cedarsspecialist')
+    message = 'Invalid role or insufficient permissions.' # Default message
 
-class IsPropertyOwner(permissions.BasePermission):
-    """
-    Permission to only allow property owners to access their own properties.
-    """
-    
-    def has_permission(self, request, view):
-        """
-        Check if the user is authenticated and is a property owner.
-        """
-        return request.user.is_authenticated and hasattr(request.user, 'propertyowner')
-    
-    def has_object_permission(self, request, view, obj):
-        """
-        Check if the property owner is accessing their own properties.
-        """
-        if not request.user.is_authenticated or not hasattr(request.user, 'propertyowner'):
-            return False
-            
-        # If this is an accommodation, check that it belongs to this owner
-        if hasattr(obj, 'owner'):
-            return obj.owner.id == request.user.propertyowner.id
-            
-        # If it's the owner themselves, check that it's the same owner
-        if hasattr(obj, 'id') and hasattr(obj, 'name') and not hasattr(obj, 'owner'):
-            return obj.id == request.user.propertyowner.id
-            
-        return False
+    def get_role(self, request):
+        return get_role_and_id_from_request(request)
 
-class IsOwnerOrCEDARSSpecialist(permissions.BasePermission):
+# --- General Role Permissions --- 
+
+class IsAnyCEDARSSpecialist(BaseRolePermission):
     """
-    Permission to allow both property owners and CEDARS specialists access.
-    
-    Property owners can only access their own properties.
-    CEDARS specialists can access any property.
+    Allows access only if the role is 'cedars_specialist' (ID optional).
+    Used for actions any specialist can perform without targeting a specific object.
     """
-    
+    message = 'This action requires a CEDARS Specialist role.'
     def has_permission(self, request, view):
-        """
-        Check if the user is authenticated and is either a property owner or a CEDARS specialist.
-        """
-        return (request.user.is_authenticated and 
-                (hasattr(request.user, 'propertyowner') or 
-                 hasattr(request.user, 'cedarsspecialist')))
-    
-    def has_object_permission(self, request, view, obj):
-        """
-        Property owners can only access their own properties.
-        CEDARS specialists can access any property.
-        """
-        if not request.user.is_authenticated:
-            return False
-            
-        # CEDARS specialists can access any accommodation
-        if hasattr(request.user, 'cedarsspecialist'):
+        role_type, _ = self.get_role(request)
+        return role_type == 'cedars_specialist'
+
+class IsAnyHKUMemberOrCEDARSSpecialist(BaseRolePermission):
+    """
+    Allows access if the role is 'hku_member:<uid>' or 'cedars_specialist[:id]'.
+    Used for actions accessible to both roles (e.g., viewing accommodations).
+    """
+    message = 'This action requires a HKU Member or CEDARS Specialist role.'
+    def has_permission(self, request, view):
+        role_type, role_id = self.get_role(request)
+        if role_type == 'hku_member' and role_id:
             return True
-            
-        # Property owners can only access their own accommodations
-        if hasattr(request.user, 'propertyowner') and hasattr(obj, 'owner'):
-            return obj.owner.id == request.user.propertyowner.id
-            
-        return False 
+        if role_type == 'cedars_specialist': # ID optional for specialist
+            return True
+        return False
+
+# --- Specific Resource Permissions --- 
+
+# Property Owners: Only CEDARS Specialists
+# Use IsAnyCEDARSSpecialist for all actions.
+
+# Accommodations:
+# - List/Retrieve/Search: IsAnyHKUMemberOrCEDARSSpecialist
+# - Create/Update/Delete: IsAnyCEDARSSpecialist
+# - reservations action: IsAnyCEDARSSpecialist
+
+# HKU Members:
+class CanRetrieveUpdateHKUMember(BaseRolePermission):
+    """
+    Allows CEDARS Specialists OR the specific HKU Member.
+    """
+    message = 'Only CEDARS Specialists or the specific HKU Member can perform this action.'
+    def has_permission(self, request, view):
+        # Check if the role format is valid first
+        role_type, role_id = self.get_role(request)
+        if role_type == 'cedars_specialist':
+             return True
+        if role_type == 'hku_member' and role_id:
+             return True
+        return False
+        
+    def has_object_permission(self, request, view, obj):
+        role_type, role_id = self.get_role(request)
+        if role_type == 'cedars_specialist':
+            return True # Specialists can access any member
+        if role_type == 'hku_member' and role_id:
+             # obj is the HKUMember instance here
+            return obj.uid == role_id
+        return False
+
+# CEDARS Specialists: Only CEDARS Specialists
+# Use IsAnyCEDARSSpecialist for all actions.
+
+# Reservations:
+class CanListReservations(BaseRolePermission):
+    """
+    Allows CEDARS Specialists to list all, or HKU members to list their own (via member endpoint).
+    NOTE: This permission is tricky for the main /reservations/ list endpoint.
+    It's easier to handle the filtering logic within the view itself, 
+    so we just check if the user is a valid role type here.
+    The view will filter based on role_id if hku_member.
+    """
+    message = 'Requires CEDARS Specialist or HKU Member role.'
+    def has_permission(self, request, view):
+        role_type, role_id = self.get_role(request)
+        # Allow CEDARS specialist (ID optional) or HKU member (ID required)
+        return role_type == 'cedars_specialist' or (role_type == 'hku_member' and role_id)
+
+class CanCreateReservation(BaseRolePermission):
+    """
+    Allows HKU members (for self) or CEDARS specialists (for any specified member).
+    """
+    message = 'HKU Members can reserve for self; CEDARS Specialists can reserve for any member.'
+    def has_permission(self, request, view):
+        role_type, role_id = self.get_role(request)
+        if role_type == 'cedars_specialist':
+             # Specialist needs member_id in request data, checked in view
+             return True
+        if role_type == 'hku_member' and role_id:
+             # Member must have UID
+             return True
+        return False
+
+class CanAccessReservationObject(BaseRolePermission):
+    """
+    Object-level permission: Allows CEDARS Specialists OR the HKU Member owner.
+    Used for Retrieve, Cancel.
+    """
+    message = 'Only CEDARS Specialists or the reservation owner can perform this action.'
+    def has_permission(self, request, view):
+        role_type, role_id = self.get_role(request)
+        # --- DEBUGGING PRINT --- 
+        print(f"[DEBUG] CanAccessReservationObject: Checking has_permission for role_type='{role_type}', role_id='{role_id}'")
+        # --- END DEBUGGING --- 
+        if role_type == 'cedars_specialist':
+             return True
+        if role_type == 'hku_member' and role_id:
+             return True
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        role_type, role_id = self.get_role(request)
+        # --- DEBUGGING PRINT --- 
+        print(f"[DEBUG] CanAccessReservationObject: Checking object permission for role_type='{role_type}', role_id='{role_id}'")
+        # --- END DEBUGGING --- 
+        if role_type == 'cedars_specialist':
+             # --- DEBUGGING PRINT --- 
+            print(f"[DEBUG] CanAccessReservationObject: Allowing CEDARS specialist.")
+            # --- END DEBUGGING --- 
+            return True # Specialists can access any reservation
+        if role_type == 'hku_member' and role_id:
+             # obj is the Reservation instance here
+             # Ensure the reservation has a member linked correctly
+            allowed = hasattr(obj, 'member') and obj.member.uid == role_id
+             # --- DEBUGGING PRINT --- 
+            print(f"[DEBUG] CanAccessReservationObject: HKU member check - allowed={allowed}")
+            # --- END DEBUGGING --- 
+            return allowed
+        # --- DEBUGGING PRINT --- 
+        print(f"[DEBUG] CanAccessReservationObject: Denying by default.")
+        # --- END DEBUGGING --- 
+        return False
+
+# Ratings:
+class CanListRatings(BaseRolePermission):
+    """
+    Allows CEDARS Specialists to list all, or HKU members to list their own.
+    Similar to CanListReservations, view handles filtering for HKU members.
+    """
+    message = 'Requires CEDARS Specialist or HKU Member role.'
+    def has_permission(self, request, view):
+        role_type, role_id = self.get_role(request)
+        return role_type == 'cedars_specialist' or (role_type == 'hku_member' and role_id)
+
+class CanCreateRating(BaseRolePermission):
+    """
+    Allows only HKU members to create ratings for their own completed reservations.
+    Further checks (completion, ownership) happen in the view.
+    """
+    message = 'Only HKU Members can create ratings.'
+    def has_permission(self, request, view):
+        role_type, role_id = self.get_role(request)
+        return role_type == 'hku_member' and role_id is not None
+
+class CanAccessRatingObject(BaseRolePermission):
+    """
+    Object-level permission: Allows CEDARS Specialists OR the HKU Member owner of the rating's reservation.
+    Used for Retrieve.
+    """
+    message = 'Only CEDARS Specialists or the rating owner can perform this action.'
+    def has_permission(self, request, view):
+        # Check if the role format is valid first
+        role_type, role_id = self.get_role(request)
+        if role_type == 'cedars_specialist':
+             return True
+        if role_type == 'hku_member' and role_id:
+             return True
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        role_type, role_id = self.get_role(request)
+        if role_type == 'cedars_specialist':
+            return True # Specialists can access any rating
+        if role_type == 'hku_member' and role_id:
+             # obj is the Rating instance here
+             # Ensure the rating has a reservation and member linked correctly
+            return hasattr(obj, 'reservation') and hasattr(obj.reservation, 'member') and obj.reservation.member.uid == role_id
+        return False
+
+# --- DEPRECATED / UNUSED --- 
+# Keeping original classes here for reference, but they are not used
+# because they rely on request.user which is not how roles are passed.
+
+# class IsHKUMember(permissions.BasePermission):
+#     ...
+
+# class IsCEDARSSpecialist(permissions.BasePermission):
+#     ...
+
+# class IsPropertyOwner(permissions.BasePermission):
+#     ...
+
+# class IsOwnerOrCEDARSSpecialist(permissions.BasePermission):
+#     ... 

@@ -19,7 +19,7 @@ from django.urls import path, include
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    # path('admin/', admin.site.urls), # Commented out for demo API
     path('api-auth/', include('rest_framework.urls')),
     path('', include('unihaven.urls')),
     # path('docs/', include_docs_urls(title='UniHaven API')),
