@@ -1,0 +1,2521 @@
+openapi: 3.0.3
+info:
+  title: Unihaven API
+  version: 1.0.0
+  description: API for Unihaven project Cedars Specialist can checked the reserved
+    accomodations and cancell it at all timres HKU members can search accomodations,
+    reserve it and rate the completed bookings
+paths:
+  /accommodations/:
+    get:
+      operationId: accommodations_list
+      description: |-
+        List all accommodations.
+        Only HKU members and CEDARS specialists can list accommodations.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - accommodations
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAccommodationList'
+          description: ''
+    post:
+      operationId: accommodations_create
+      description: |-
+        Create a new accommodation.
+        Only CEDARS specialists can create accommodations.
+      tags:
+      - accommodations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Accommodation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Accommodation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Accommodation'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accommodation'
+          description: ''
+  /accommodations/{id}/:
+    get:
+      operationId: accommodations_retrieve
+      description: |-
+        Retrieve an accommodation.
+        Only HKU members and CEDARS specialists can retrieve accommodation details.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this accommodation.
+        required: true
+      tags:
+      - accommodations
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accommodation'
+          description: ''
+    put:
+      operationId: accommodations_update
+      description: |-
+        Update an accommodation.
+        Only CEDARS specialists can update accommodations.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this accommodation.
+        required: true
+      tags:
+      - accommodations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Accommodation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Accommodation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Accommodation'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accommodation'
+          description: ''
+    patch:
+      operationId: accommodations_partial_update
+      description: |-
+        ViewSet for managing accommodations.
+        Provides CRUD operations and search functionality for Accommodation model.
+
+        Features:
+        - Filtering by type, price, rating, beds, bedrooms, availability
+        - Geocoding of addresses
+        - Distance-based search from HKU locations
+        - Custom search endpoint
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this accommodation.
+        required: true
+      tags:
+      - accommodations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAccommodation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAccommodation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAccommodation'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accommodation'
+          description: ''
+    delete:
+      operationId: accommodations_destroy
+      description: |-
+        Delete an accommodation.
+        Only CEDARS specialists can delete accommodations.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this accommodation.
+        required: true
+      tags:
+      - accommodations
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /accommodations/search/:
+    get:
+      operationId: accommodations_search_retrieve
+      description: |-
+        Custom search endpoint for accommodations with advanced filtering.
+        Only HKU members can search for accommodations.
+
+        Query Parameters:
+        - type: Filter by accommodation type
+        - min_beds/exact_beds: Filter by number of beds (minimum or exact)
+        - min_bedrooms/exact_bedrooms: Filter by number of bedrooms (minimum or exact)
+        - min_rating/exact_rating: Filter by rating (minimum or exact)
+        - max_price: Filter by maximum price
+        - available_from: Filter by availability start date
+        - available_until: Filter by availability end date
+        - distance_from: Calculate distances from specified HKU location or address
+
+        Returns:
+            Response: JSON response containing filtered accommodations with optional distance calculations
+      tags:
+      - accommodations
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accommodation'
+          description: ''
+  /cedars-specialists/:
+    get:
+      operationId: cedars_specialists_list
+      description: |-
+        List CEDARS specialists.
+        Only CEDARS specialists can list all specialists.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - cedars-specialists
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCEDARSSpecialistList'
+          description: ''
+    post:
+      operationId: cedars_specialists_create
+      description: |-
+        Create a new CEDARS specialist.
+        Only CEDARS specialists can create new specialists.
+      tags:
+      - cedars-specialists
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CEDARSSpecialist'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CEDARSSpecialist'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CEDARSSpecialist'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CEDARSSpecialist'
+          description: ''
+  /cedars-specialists/{id}/:
+    get:
+      operationId: cedars_specialists_retrieve
+      description: |-
+        Retrieve a CEDARS specialist.
+        Only CEDARS specialists can retrieve specialist details.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this cedars specialist.
+        required: true
+      tags:
+      - cedars-specialists
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CEDARSSpecialist'
+          description: ''
+    put:
+      operationId: cedars_specialists_update
+      description: |-
+        Update a CEDARS specialist.
+        Only CEDARS specialists can update specialist details.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this cedars specialist.
+        required: true
+      tags:
+      - cedars-specialists
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CEDARSSpecialist'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CEDARSSpecialist'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CEDARSSpecialist'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CEDARSSpecialist'
+          description: ''
+    patch:
+      operationId: cedars_specialists_partial_update
+      description: |-
+        ViewSet for managing CEDARS specialists.
+        Provides CRUD operations for CEDARSSpecialist model.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this cedars specialist.
+        required: true
+      tags:
+      - cedars-specialists
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCEDARSSpecialist'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCEDARSSpecialist'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCEDARSSpecialist'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CEDARSSpecialist'
+          description: ''
+    delete:
+      operationId: cedars_specialists_destroy
+      description: |-
+        Delete a CEDARS specialist.
+        Only CEDARS specialists can delete specialists.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this cedars specialist.
+        required: true
+      tags:
+      - cedars-specialists
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /cedars-specialists/{id}/add_accommodation/:
+    get:
+      operationId: cedars_specialists_add_accommodation_retrieve
+      description: |-
+        Add a new accommodation managed by this specialist.
+
+        Args:
+            request: The HTTP request containing accommodation data
+            pk: The primary key of the CEDARS specialist
+
+        Returns:
+            Response: The created accommodation or error message
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this cedars specialist.
+        required: true
+      tags:
+      - cedars-specialists
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accommodation'
+          description: ''
+    post:
+      operationId: cedars_specialists_add_accommodation_create
+      description: |-
+        Add a new accommodation managed by this specialist.
+
+        Args:
+            request: The HTTP request containing accommodation data
+            pk: The primary key of the CEDARS specialist
+
+        Returns:
+            Response: The created accommodation or error message
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this cedars specialist.
+        required: true
+      tags:
+      - cedars-specialists
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Accommodation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Accommodation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Accommodation'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accommodation'
+          description: ''
+  /cedars-specialists/{id}/cancel_reservation/:
+    get:
+      operationId: cedars_specialists_cancel_reservation_retrieve
+      description: |-
+        Cancel a reservation as a CEDARS specialist.
+
+        Args:
+            request: The HTTP request containing reservation_id
+            pk: The primary key of the CEDARS specialist
+
+        Returns:
+            Response: The cancelled reservation or error message
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this cedars specialist.
+        required: true
+      tags:
+      - cedars-specialists
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelReservation'
+          description: ''
+    post:
+      operationId: cedars_specialists_cancel_reservation_create
+      description: |-
+        Cancel a reservation as a CEDARS specialist.
+
+        Args:
+            request: The HTTP request containing reservation_id
+            pk: The primary key of the CEDARS specialist
+
+        Returns:
+            Response: The cancelled reservation or error message
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this cedars specialist.
+        required: true
+      tags:
+      - cedars-specialists
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelReservation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CancelReservation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CancelReservation'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelReservation'
+          description: ''
+  /cedars-specialists/{id}/managed_accommodations/:
+    get:
+      operationId: cedars_specialists_managed_accommodations_retrieve
+      description: |-
+        Get all accommodations managed by a specific CEDARS specialist.
+
+        Args:
+            request: The HTTP request
+            pk: The primary key of the CEDARS specialist
+
+        Returns:
+            Response: List of accommodations managed by the specialist
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this cedars specialist.
+        required: true
+      tags:
+      - cedars-specialists
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CEDARSSpecialist'
+          description: ''
+  /cedars-specialists/{id}/update_accommodation/:
+    get:
+      operationId: cedars_specialists_update_accommodation_retrieve
+      description: |-
+        Update an existing accommodation managed by this specialist.
+
+        Args:
+            request: The HTTP request containing accommodation_id and updated data
+            pk: The primary key of the CEDARS specialist
+
+        Returns:
+            Response: The updated accommodation or error message
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this cedars specialist.
+        required: true
+      tags:
+      - cedars-specialists
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateAccommodation'
+          description: ''
+    post:
+      operationId: cedars_specialists_update_accommodation_create
+      description: |-
+        Update an existing accommodation managed by this specialist.
+
+        Args:
+            request: The HTTP request containing accommodation_id and updated data
+            pk: The primary key of the CEDARS specialist
+
+        Returns:
+            Response: The updated accommodation or error message
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this cedars specialist.
+        required: true
+      tags:
+      - cedars-specialists
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAccommodation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UpdateAccommodation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UpdateAccommodation'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateAccommodation'
+          description: ''
+  /hku-members/:
+    get:
+      operationId: hku_members_list
+      description: |-
+        List HKU members.
+        Only CEDARS specialists can list all HKU members.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - hku-members
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedHKUMemberList'
+          description: ''
+    post:
+      operationId: hku_members_create
+      description: |-
+        Create a new HKU member.
+        Only CEDARS specialists can create HKU members directly.
+      tags:
+      - hku-members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HKUMember'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/HKUMember'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/HKUMember'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HKUMember'
+          description: ''
+  /hku-members/{uid}/:
+    get:
+      operationId: hku_members_retrieve
+      description: |-
+        Retrieve an HKU member.
+        HKU members can only retrieve their own profile.
+        CEDARS specialists can retrieve any HKU member.
+      parameters:
+      - in: path
+        name: uid
+        schema:
+          type: string
+        description: A unique value identifying this hku member.
+        required: true
+      tags:
+      - hku-members
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HKUMember'
+          description: ''
+    put:
+      operationId: hku_members_update
+      description: |-
+        Update an HKU member.
+        HKU members can only update their own profile.
+        CEDARS specialists can update any HKU member.
+      parameters:
+      - in: path
+        name: uid
+        schema:
+          type: string
+        description: A unique value identifying this hku member.
+        required: true
+      tags:
+      - hku-members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HKUMember'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/HKUMember'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/HKUMember'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HKUMember'
+          description: ''
+    patch:
+      operationId: hku_members_partial_update
+      description: |-
+        ViewSet for managing HKU members.
+        Provides CRUD operations for HKUMember model.
+      parameters:
+      - in: path
+        name: uid
+        schema:
+          type: string
+        description: A unique value identifying this hku member.
+        required: true
+      tags:
+      - hku-members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedHKUMember'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedHKUMember'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedHKUMember'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HKUMember'
+          description: ''
+    delete:
+      operationId: hku_members_destroy
+      description: |-
+        Delete an HKU member.
+        Only CEDARS specialists can delete HKU members.
+      parameters:
+      - in: path
+        name: uid
+        schema:
+          type: string
+        description: A unique value identifying this hku member.
+        required: true
+      tags:
+      - hku-members
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /hku-members/{uid}/cancel_reservation/:
+    get:
+      operationId: hku_members_cancel_reservation_retrieve
+      description: |-
+        Cancel a reservation for a specific HKU member.
+
+        Args:
+            request: The HTTP request containing reservation_id
+            pk: The primary key of the HKU member
+
+        Returns:
+            Response: The cancelled reservation or error message
+      parameters:
+      - in: path
+        name: uid
+        schema:
+          type: string
+        description: A unique value identifying this hku member.
+        required: true
+      tags:
+      - hku-members
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelReservation'
+          description: ''
+    post:
+      operationId: hku_members_cancel_reservation_create
+      description: |-
+        Cancel a reservation for a specific HKU member.
+
+        Args:
+            request: The HTTP request containing reservation_id
+            pk: The primary key of the HKU member
+
+        Returns:
+            Response: The cancelled reservation or error message
+      parameters:
+      - in: path
+        name: uid
+        schema:
+          type: string
+        description: A unique value identifying this hku member.
+        required: true
+      tags:
+      - hku-members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelReservation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CancelReservation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CancelReservation'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelReservation'
+          description: ''
+  /hku-members/{uid}/rate_accommodation/:
+    get:
+      operationId: hku_members_rate_accommodation_retrieve
+      description: |-
+        Rate an accommodation based on a reservation.
+
+        Args:
+            request: The HTTP request containing reservation_id, score, and optional comment
+            pk: The primary key of the HKU member
+
+        Returns:
+            Response: The created rating or error message
+      parameters:
+      - in: path
+        name: uid
+        schema:
+          type: string
+        description: A unique value identifying this hku member.
+        required: true
+      tags:
+      - hku-members
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateAccommodation'
+          description: ''
+    post:
+      operationId: hku_members_rate_accommodation_create
+      description: |-
+        Rate an accommodation based on a reservation.
+
+        Args:
+            request: The HTTP request containing reservation_id, score, and optional comment
+            pk: The primary key of the HKU member
+
+        Returns:
+            Response: The created rating or error message
+      parameters:
+      - in: path
+        name: uid
+        schema:
+          type: string
+        description: A unique value identifying this hku member.
+        required: true
+      tags:
+      - hku-members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RateAccommodation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RateAccommodation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RateAccommodation'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateAccommodation'
+          description: ''
+  /hku-members/{uid}/reservations/:
+    get:
+      operationId: hku_members_reservations_retrieve
+      description: |-
+        Get all reservations for a specific HKU member.
+
+        Args:
+            request: The HTTP request
+            pk: The primary key of the HKU member
+
+        Returns:
+            Response: List of reservations for the member
+      parameters:
+      - in: path
+        name: uid
+        schema:
+          type: string
+        description: A unique value identifying this hku member.
+        required: true
+      tags:
+      - hku-members
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HKUMember'
+          description: ''
+  /hku-members/{uid}/reserve_accommodation/:
+    get:
+      operationId: hku_members_reserve_accommodation_retrieve
+      description: |-
+        Reserve an accommodation for a specific HKU member.
+
+        Args:
+            request: The HTTP request containing accommodation_id, start_date, end_date
+            pk: The primary key of the HKU member
+
+        Returns:
+            Response: The created reservation or error message
+      parameters:
+      - in: path
+        name: uid
+        schema:
+          type: string
+        description: A unique value identifying this hku member.
+        required: true
+      tags:
+      - hku-members
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReserveAccommodation'
+          description: ''
+    post:
+      operationId: hku_members_reserve_accommodation_create
+      description: |-
+        Reserve an accommodation for a specific HKU member.
+
+        Args:
+            request: The HTTP request containing accommodation_id, start_date, end_date
+            pk: The primary key of the HKU member
+
+        Returns:
+            Response: The created reservation or error message
+      parameters:
+      - in: path
+        name: uid
+        schema:
+          type: string
+        description: A unique value identifying this hku member.
+        required: true
+      tags:
+      - hku-members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReserveAccommodation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReserveAccommodation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReserveAccommodation'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReserveAccommodation'
+          description: ''
+  /property-owners/:
+    get:
+      operationId: property_owners_list
+      description: |-
+        ViewSet for managing property owners.
+        Provides CRUD operations for PropertyOwner model.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - property-owners
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPropertyOwnerList'
+          description: ''
+    post:
+      operationId: property_owners_create
+      description: |-
+        Create a new property owner.
+        Only CEDARS specialists can create property owners.
+      tags:
+      - property-owners
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyOwner'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PropertyOwner'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PropertyOwner'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyOwner'
+          description: ''
+  /property-owners/{id}/:
+    get:
+      operationId: property_owners_retrieve
+      description: |-
+        ViewSet for managing property owners.
+        Provides CRUD operations for PropertyOwner model.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this property owner.
+        required: true
+      tags:
+      - property-owners
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyOwner'
+          description: ''
+    put:
+      operationId: property_owners_update
+      description: |-
+        Update a property owner.
+        Only CEDARS specialists can update property owners.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this property owner.
+        required: true
+      tags:
+      - property-owners
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyOwner'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PropertyOwner'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PropertyOwner'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyOwner'
+          description: ''
+    patch:
+      operationId: property_owners_partial_update
+      description: |-
+        ViewSet for managing property owners.
+        Provides CRUD operations for PropertyOwner model.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this property owner.
+        required: true
+      tags:
+      - property-owners
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPropertyOwner'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPropertyOwner'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPropertyOwner'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyOwner'
+          description: ''
+    delete:
+      operationId: property_owners_destroy
+      description: |-
+        Delete a property owner.
+        Only CEDARS specialists can delete property owners.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this property owner.
+        required: true
+      tags:
+      - property-owners
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /ratings/:
+    get:
+      operationId: ratings_list
+      description: |-
+        ViewSet for managing ratings.
+        Provides CRUD operations for Rating model.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - ratings
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRatingList'
+          description: ''
+    post:
+      operationId: ratings_create
+      description: |-
+        Create a new rating.
+        Only HKU members can create ratings for their own completed reservations.
+      tags:
+      - ratings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Rating'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Rating'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Rating'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rating'
+          description: ''
+  /ratings/{id}/:
+    get:
+      operationId: ratings_retrieve
+      description: |-
+        ViewSet for managing ratings.
+        Provides CRUD operations for Rating model.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this rating.
+        required: true
+      tags:
+      - ratings
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rating'
+          description: ''
+    put:
+      operationId: ratings_update
+      description: |-
+        Update a rating.
+        HKU members can only update their own ratings.
+        CEDARS specialists can update any rating.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this rating.
+        required: true
+      tags:
+      - ratings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Rating'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Rating'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Rating'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rating'
+          description: ''
+    patch:
+      operationId: ratings_partial_update
+      description: |-
+        ViewSet for managing ratings.
+        Provides CRUD operations for Rating model.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this rating.
+        required: true
+      tags:
+      - ratings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedRating'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedRating'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedRating'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rating'
+          description: ''
+    delete:
+      operationId: ratings_destroy
+      description: |-
+        Delete a rating.
+        HKU members can delete their own ratings.
+        CEDARS specialists can delete any rating.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this rating.
+        required: true
+      tags:
+      - ratings
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /reservations/:
+    get:
+      operationId: reservations_list
+      description: |-
+        ViewSet for managing reservations.
+        Provides CRUD operations for Reservation model.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - reservations
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedReservationList'
+          description: ''
+    post:
+      operationId: reservations_create
+      description: |-
+        Create a new reservation.
+        Only HKU members can create reservations, and they should use the reserve_accommodation endpoint.
+        CEDARS specialists can create reservations on behalf of HKU members.
+      tags:
+      - reservations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reservation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Reservation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Reservation'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+          description: ''
+  /reservations/{id}/:
+    get:
+      operationId: reservations_retrieve
+      description: |-
+        ViewSet for managing reservations.
+        Provides CRUD operations for Reservation model.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this reservation.
+        required: true
+      tags:
+      - reservations
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+          description: ''
+    put:
+      operationId: reservations_update
+      description: |-
+        Update a reservation.
+        Only CEDARS specialists can update reservations directly.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this reservation.
+        required: true
+      tags:
+      - reservations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reservation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Reservation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Reservation'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+          description: ''
+    patch:
+      operationId: reservations_partial_update
+      description: |-
+        ViewSet for managing reservations.
+        Provides CRUD operations for Reservation model.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this reservation.
+        required: true
+      tags:
+      - reservations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedReservation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedReservation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedReservation'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+          description: ''
+    delete:
+      operationId: reservations_destroy
+      description: |-
+        Delete a reservation.
+        Only CEDARS specialists can delete reservations.
+        HKU members should use the cancel_reservation endpoint.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this reservation.
+        required: true
+      tags:
+      - reservations
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /reservations/{id}/confirm/:
+    get:
+      operationId: reservations_confirm_retrieve
+      description: |-
+        Confirm a reservation, changing its status from 'pending' to 'confirmed'.
+
+        Args:
+            request: The HTTP request
+            pk: The primary key of the reservation
+
+        Returns:
+            Response: The updated reservation or error message
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this reservation.
+        required: true
+      tags:
+      - reservations
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: reservations_confirm_create
+      description: |-
+        Confirm a reservation, changing its status from 'pending' to 'confirmed'.
+
+        Args:
+            request: The HTTP request
+            pk: The primary key of the reservation
+
+        Returns:
+            Response: The updated reservation or error message
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this reservation.
+        required: true
+      tags:
+      - reservations
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+components:
+  schemas:
+    Accommodation:
+      type: object
+      description: |-
+        Serializer for the Accommodation model.
+
+        Provides comprehensive serialization for accommodation listings with support for:
+        - Creating/updating accommodations
+        - Handling property owner relationships
+        - Validating dates and numeric fields
+        - Automatic geocoding of addresses
+
+        Fields:
+            id (int): Unique identifier (read-only)
+            type (str): Type of accommodation
+            address (str): Physical address
+            latitude (float): Latitude coordinate (read-only, auto-populated)
+            longitude (float): Longitude coordinate (read-only, auto-populated)
+            geo_address (str): Geocoded address (read-only, auto-populated)
+            available_from (date): Start date of availability
+            available_until (date): End date of availability
+            beds (int): Number of beds (min: 0)
+            bedrooms (int): Number of bedrooms (min: 0)
+            daily_price (Decimal): Price per day (min: 0.01)
+            owner (PropertyOwnerSerializer): Nested serializer for owner details
+            owner_id (int): ID for selecting existing owner (write-only)
+            specialist (CEDARSSpecialistSerializer): Nested serializer for specialist details
+            specialist_id (int): ID for selecting existing specialist (write-only)
+            average_rating (float): Average rating based on associated ratings
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        type:
+          $ref: '#/components/schemas/AccommodationTypeEnum'
+        address:
+          type: string
+          maxLength: 255
+        latitude:
+          type: number
+          format: double
+          readOnly: true
+        longitude:
+          type: number
+          format: double
+          readOnly: true
+        geo_address:
+          type: string
+          readOnly: true
+        available_from:
+          type: string
+          format: date
+        available_until:
+          type: string
+          format: date
+        beds:
+          type: integer
+          minimum: 0
+          title: Number of beds (must be 0 or greater)
+        bedrooms:
+          type: integer
+          minimum: 0
+          title: Number of bedrooms (must be 0 or greater)
+        average_rating:
+          type: number
+          format: double
+          readOnly: true
+        daily_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          title: Daily price (positive amount)
+        owner:
+          allOf:
+          - $ref: '#/components/schemas/PropertyOwner'
+          readOnly: true
+        owner_id:
+          type: integer
+          writeOnly: true
+          nullable: true
+          title: Select existing owner (leave blank for new owner)
+        owner_name:
+          type: string
+          writeOnly: true
+          title: New owner name (only if creating new owner)
+        owner_phone:
+          type: string
+          writeOnly: true
+          title: New owner phone number (only if creating new owner)
+        specialist:
+          allOf:
+          - $ref: '#/components/schemas/CEDARSSpecialist'
+          readOnly: true
+        specialist_id:
+          type: integer
+          writeOnly: true
+          nullable: true
+          title: Select managing specialist
+      required:
+      - address
+      - available_from
+      - available_until
+      - average_rating
+      - bedrooms
+      - beds
+      - daily_price
+      - geo_address
+      - id
+      - latitude
+      - longitude
+      - owner
+      - specialist
+      - type
+    AccommodationTypeEnum:
+      enum:
+      - apartment
+      - house
+      - villa
+      - studio
+      - hostel
+      type: string
+      description: |-
+        * `apartment` - Apartment
+        * `house` - House
+        * `villa` - Villa
+        * `studio` - Studio
+        * `hostel` - Hostel
+    CEDARSSpecialist:
+      type: object
+      description: |-
+        Serializer for the CEDARSSpecialist model.
+
+        Handles serialization and deserialization of CEDARS specialist objects.
+
+        Fields:
+            id (int): Unique identifier
+            name (str): Name of the CEDARS specialist
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+      required:
+      - id
+      - name
+    CancelReservation:
+      type: object
+      description: |-
+        Serializer for cancelling a reservation.
+
+        Fields:
+            reservation_id (int): ID of the reservation to cancel
+      properties:
+        reservation_id:
+          type: integer
+      required:
+      - reservation_id
+    HKUMember:
+      type: object
+      description: |-
+        Serializer for the HKUMember model.
+
+        Handles serialization and deserialization of HKU member objects.
+
+        Fields:
+            uid (str): Unique identifier (primary key)
+            name (str): Name of the HKU member
+      properties:
+        uid:
+          type: string
+          maxLength: 255
+        name:
+          type: string
+          maxLength: 255
+      required:
+      - name
+      - uid
+    PaginatedAccommodationList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Accommodation'
+    PaginatedCEDARSSpecialistList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CEDARSSpecialist'
+    PaginatedHKUMemberList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/HKUMember'
+    PaginatedPropertyOwnerList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyOwner'
+    PaginatedRatingList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Rating'
+    PaginatedReservationList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Reservation'
+    PatchedAccommodation:
+      type: object
+      description: |-
+        Serializer for the Accommodation model.
+
+        Provides comprehensive serialization for accommodation listings with support for:
+        - Creating/updating accommodations
+        - Handling property owner relationships
+        - Validating dates and numeric fields
+        - Automatic geocoding of addresses
+
+        Fields:
+            id (int): Unique identifier (read-only)
+            type (str): Type of accommodation
+            address (str): Physical address
+            latitude (float): Latitude coordinate (read-only, auto-populated)
+            longitude (float): Longitude coordinate (read-only, auto-populated)
+            geo_address (str): Geocoded address (read-only, auto-populated)
+            available_from (date): Start date of availability
+            available_until (date): End date of availability
+            beds (int): Number of beds (min: 0)
+            bedrooms (int): Number of bedrooms (min: 0)
+            daily_price (Decimal): Price per day (min: 0.01)
+            owner (PropertyOwnerSerializer): Nested serializer for owner details
+            owner_id (int): ID for selecting existing owner (write-only)
+            specialist (CEDARSSpecialistSerializer): Nested serializer for specialist details
+            specialist_id (int): ID for selecting existing specialist (write-only)
+            average_rating (float): Average rating based on associated ratings
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        type:
+          $ref: '#/components/schemas/AccommodationTypeEnum'
+        address:
+          type: string
+          maxLength: 255
+        latitude:
+          type: number
+          format: double
+          readOnly: true
+        longitude:
+          type: number
+          format: double
+          readOnly: true
+        geo_address:
+          type: string
+          readOnly: true
+        available_from:
+          type: string
+          format: date
+        available_until:
+          type: string
+          format: date
+        beds:
+          type: integer
+          minimum: 0
+          title: Number of beds (must be 0 or greater)
+        bedrooms:
+          type: integer
+          minimum: 0
+          title: Number of bedrooms (must be 0 or greater)
+        average_rating:
+          type: number
+          format: double
+          readOnly: true
+        daily_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          title: Daily price (positive amount)
+        owner:
+          allOf:
+          - $ref: '#/components/schemas/PropertyOwner'
+          readOnly: true
+        owner_id:
+          type: integer
+          writeOnly: true
+          nullable: true
+          title: Select existing owner (leave blank for new owner)
+        owner_name:
+          type: string
+          writeOnly: true
+          title: New owner name (only if creating new owner)
+        owner_phone:
+          type: string
+          writeOnly: true
+          title: New owner phone number (only if creating new owner)
+        specialist:
+          allOf:
+          - $ref: '#/components/schemas/CEDARSSpecialist'
+          readOnly: true
+        specialist_id:
+          type: integer
+          writeOnly: true
+          nullable: true
+          title: Select managing specialist
+    PatchedCEDARSSpecialist:
+      type: object
+      description: |-
+        Serializer for the CEDARSSpecialist model.
+
+        Handles serialization and deserialization of CEDARS specialist objects.
+
+        Fields:
+            id (int): Unique identifier
+            name (str): Name of the CEDARS specialist
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+    PatchedHKUMember:
+      type: object
+      description: |-
+        Serializer for the HKUMember model.
+
+        Handles serialization and deserialization of HKU member objects.
+
+        Fields:
+            uid (str): Unique identifier (primary key)
+            name (str): Name of the HKU member
+      properties:
+        uid:
+          type: string
+          maxLength: 255
+        name:
+          type: string
+          maxLength: 255
+    PatchedPropertyOwner:
+      type: object
+      description: |-
+        Serializer for the PropertyOwner model.
+
+        Handles serialization and deserialization of PropertyOwner objects.
+
+        Fields:
+            id (int): Unique identifier
+            name (str): Name of the property owner
+            phone_no (str): Phone number of the property owner
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        phone_no:
+          type: string
+          maxLength: 255
+    PatchedRating:
+      type: object
+      description: |-
+        Serializer for the Rating model.
+
+        Handles serialization and deserialization of Rating objects.
+
+        Fields:
+            id (int): Unique identifier
+            score (int): Rating score (0-5)
+            date_rated (date): Date when the rating was submitted
+            comment (str): Optional comment for the rating
+            reservation (int): ID of the associated reservation
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        score:
+          type: integer
+          maximum: 5
+          minimum: 0
+        date_rated:
+          type: string
+          format: date
+          readOnly: true
+        comment:
+          type: string
+          nullable: true
+        reservation:
+          type: integer
+    PatchedReservation:
+      type: object
+      description: |-
+        Serializer for the Reservation model.
+
+        Handles serialization and deserialization of Reservation objects.
+
+        Fields:
+            id (int): Unique identifier
+            status (str): Status of the reservation
+            start_date (date): Start date of the reservation
+            end_date (date): End date of the reservation
+            cancelled_by (str): Who cancelled the reservation (if applicable)
+            member (HKUMemberSerializer): The HKU member making the reservation
+            accommodation (AccommodationSerializer): The accommodation being reserved
+            rating (RatingSerializer): Associated rating (if any)
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        cancelled_by:
+          type: string
+          readOnly: true
+          nullable: true
+        member:
+          allOf:
+          - $ref: '#/components/schemas/HKUMember'
+          readOnly: true
+        member_id:
+          type: string
+          writeOnly: true
+        accommodation:
+          type: integer
+        rating:
+          allOf:
+          - $ref: '#/components/schemas/Rating'
+          readOnly: true
+    PropertyOwner:
+      type: object
+      description: |-
+        Serializer for the PropertyOwner model.
+
+        Handles serialization and deserialization of PropertyOwner objects.
+
+        Fields:
+            id (int): Unique identifier
+            name (str): Name of the property owner
+            phone_no (str): Phone number of the property owner
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        phone_no:
+          type: string
+          maxLength: 255
+      required:
+      - id
+      - name
+      - phone_no
+    RateAccommodation:
+      type: object
+      description: |-
+        Serializer for rating an accommodation.
+
+        Fields:
+            reservation_id (int): ID of the completed reservation
+            score (int): Rating score, 0-5
+            comment (str): Optional comment about the stay
+      properties:
+        reservation_id:
+          type: integer
+        score:
+          type: integer
+          maximum: 5
+          minimum: 0
+        comment:
+          type: string
+      required:
+      - reservation_id
+      - score
+    Rating:
+      type: object
+      description: |-
+        Serializer for the Rating model.
+
+        Handles serialization and deserialization of Rating objects.
+
+        Fields:
+            id (int): Unique identifier
+            score (int): Rating score (0-5)
+            date_rated (date): Date when the rating was submitted
+            comment (str): Optional comment for the rating
+            reservation (int): ID of the associated reservation
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        score:
+          type: integer
+          maximum: 5
+          minimum: 0
+        date_rated:
+          type: string
+          format: date
+          readOnly: true
+        comment:
+          type: string
+          nullable: true
+        reservation:
+          type: integer
+      required:
+      - date_rated
+      - id
+      - reservation
+      - score
+    Reservation:
+      type: object
+      description: |-
+        Serializer for the Reservation model.
+
+        Handles serialization and deserialization of Reservation objects.
+
+        Fields:
+            id (int): Unique identifier
+            status (str): Status of the reservation
+            start_date (date): Start date of the reservation
+            end_date (date): End date of the reservation
+            cancelled_by (str): Who cancelled the reservation (if applicable)
+            member (HKUMemberSerializer): The HKU member making the reservation
+            accommodation (AccommodationSerializer): The accommodation being reserved
+            rating (RatingSerializer): Associated rating (if any)
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        cancelled_by:
+          type: string
+          readOnly: true
+          nullable: true
+        member:
+          allOf:
+          - $ref: '#/components/schemas/HKUMember'
+          readOnly: true
+        member_id:
+          type: string
+          writeOnly: true
+        accommodation:
+          type: integer
+        rating:
+          allOf:
+          - $ref: '#/components/schemas/Rating'
+          readOnly: true
+      required:
+      - accommodation
+      - cancelled_by
+      - end_date
+      - id
+      - member
+      - member_id
+      - rating
+      - start_date
+    ReserveAccommodation:
+      type: object
+      description: |-
+        Serializer for reserving an accommodation.
+
+        Fields:
+            accommodation_id (int): ID of the accommodation to reserve
+            start_date (date): Start date of the reservation (YYYY-MM-DD)
+            end_date (date): End date of the reservation (YYYY-MM-DD)
+            member_name (str): Name of the HKU member (only required for first-time users)
+      properties:
+        accommodation_id:
+          type: integer
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        member_name:
+          type: string
+      required:
+      - accommodation_id
+      - end_date
+      - start_date
+    StatusEnum:
+      enum:
+      - pending
+      - confirmed
+      - cancelled
+      - completed
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `confirmed` - Confirmed
+        * `cancelled` - Cancelled
+        * `completed` - Completed
+    UpdateAccommodation:
+      type: object
+      description: |-
+        Serializer for updating an accommodation by a CEDARS specialist.
+
+        Fields:
+            accommodation_id (int): ID of the accommodation to update
+            type (str): Type of accommodation (optional)
+            address (str): Physical address (optional)
+            available_from (date): Start date of availability (optional)
+            available_until (date): End date of availability (optional)
+            beds (int): Number of beds (optional)
+            bedrooms (int): Number of bedrooms (optional)
+            daily_price (decimal): Price per day (optional)
+      properties:
+        accommodation_id:
+          type: integer
+        type:
+          $ref: '#/components/schemas/UpdateAccommodationTypeEnum'
+        address:
+          type: string
+        available_from:
+          type: string
+          format: date
+        available_until:
+          type: string
+          format: date
+        beds:
+          type: integer
+          minimum: 0
+        bedrooms:
+          type: integer
+          minimum: 0
+        daily_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+      required:
+      - accommodation_id
+    UpdateAccommodationTypeEnum:
+      enum:
+      - apartment
+      - house
+      - villa
+      - studio
+      - hostel
+      type: string
+      description: |-
+        * `apartment` - apartment
+        * `house` - house
+        * `villa` - villa
+        * `studio` - studio
+        * `hostel` - hostel
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid

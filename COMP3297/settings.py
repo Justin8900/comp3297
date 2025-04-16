@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'drf_spectacular',
 ]
 
 MIDDLEWARE = [
@@ -140,6 +141,7 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',
     ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
 # Email settings (for development)
@@ -163,4 +165,14 @@ LOGGING = {
             'propagate': True,
         },
     },
+}
+# Spectacular settings
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Unihaven API',
+    'DESCRIPTION': 'API for Unihaven project'\
+        ' Cedars Specialist can checked the reserved accomodations and cancell it at all timres'\
+        ' HKU members can search accomodations, reserve it and rate the completed bookings',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'SCHEMA_PATH_PREFIX': '/api/v1',
 }
