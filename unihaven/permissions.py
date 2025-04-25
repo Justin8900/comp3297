@@ -243,12 +243,28 @@ class CanAccessRatingObject(BaseRolePermission):
         return False
 
 class CanViewAccommodations(BaseRolePermission):
+    """
+    Allows access to university-specific accommodations or shared accommodations.
+    """
     def has_permission(self, request, view):
         role_type, role_id = self.get_role(request)
-        return (
-            (role_type in ['hku_member', 'ust_member', 'cu_member'] and role_id) or
-            role_type in ['cedars_specialist', 'ust_specialist', 'cu_specialist']
-        )
+        # Check if the role is a university member or specialist
+        if role_type in ['hku_member', 'ust_member', 'cu_member'] and role_id:
+            return True  # Members can view their university's accommodations
+        
+        # Allow specialists from all universities to view any shared accommodation
+        if role_type in ['cedars_specialist', 'ust_specialist', 'cu_specialist']:
+            return True
+        
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        role_type, role_id = self.get_role(request)
+        # Check if the accommodation is shared or belongs to the university
+        if obj.is_shared:
+            return True  # Any specialist or member can access shared accommodations
+        return obj.university == self.get_university(role_type)  # Ensure the university matches
+
 # --- DEPRECATED / UNUSED --- 
 # Keeping original classes here for reference, but they are not used
 # because they rely on request.user which is not how roles are passed.
