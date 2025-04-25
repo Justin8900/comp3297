@@ -1,234 +1,2521 @@
-"""
-Custom permissions for the UniHaven application.
+openapi: 3.0.3
+info:
+  title: Unihaven API
+  version: 1.0.0
+  description: |2
 
-This module defines custom permission classes to restrict access to views and actions
-based on user roles (HKU Member, CEDARS Specialist, etc.).
-"""
+    API for Unihaven project - a platform for HKU student accommodation management.
 
-from rest_framework import permissions
-from .models import Reservation, Rating, HKUMember, Accommodation # Import necessary models
-from datetime import datetime
+    ## Role-Based Access Control
 
-# Helper function to extract role and ID (moved here for reusability)
-def get_role_and_id_from_request(request):
-    """
-    Extract role type and ID/UID from the 'role' query parameter.
-    Returns: tuple (role_type, role_id) or (None, None) if invalid/missing
-    """
-    role_param = request.query_params.get('role', '')
-    if not role_param:
-        return None, None # Role is required
+    This API implements role-based access control through query parameters. For most endpoints, you must include a `role` query parameter with one of the following formats:
+
+    - `specialist`: For staff members (ID optional for some general actions like listing owners/members/specialists belong to their school).
+    - `specialist:<id>`: For staff members performing actions requiring their specific ID (e.g., retrieving managed accommodations).
+    - `member:<uid>`: For students and staff (UID is generally required).
+
+    ### Required Role Parameter
+
+    Most endpoints require the `role` parameter to be included in the request. For example:
+    ```
+    GET /accommodations/?role=hku_member:u1234567
+    POST /property-owners/?role=cedars_specialist
+    GET /reservations/?role=cedars_specialist:1 # Requires ID for specialist
+    GET /hku-members/u1234567/reservations/?role=hku_member:u1234567 # Requires matching ID
+    ```
+
+    ### Resource-Oriented Design & Actions
+
+    The API generally follows a resource-oriented design. Specific actions often use dedicated sub-paths:
+    - Creating a reservation: Use `POST /reservations/create/`
+    - Canceling a reservation: Use `POST /reservations/{id}/cancel/`
+    - Rating an accommodation: Use `POST /ratings/create/`
+    - Listing managed accommodations: Use `GET /cedars-specialists/{id}/managed_accommodations/`
+
+    **Note on Authentication/Permissions:** Some actions (notably Reservation creation/cancellation/listing and Rating creation/updating) use manual role checks within the view code and bypass standard DRF authentication/permission classes. This was done to resolve CSRF issues with non-browser clients while keeping CSRF protection enabled globally. The auto-generated schema may not fully reflect this bypass for those specific actions.
+
+    ### Permission Rules Summary:
+
+    1.  **Property Owners (`/property-owners/`)**: 
+        - List: Authorized Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`)
+        - Create: Any Specialists (`hku_specialist[:id]/ust_specialist[:id]/cu_specialist[:id]`)
+        - Retrieve: Authorized Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`)
+        - Update: Authorized Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`)
+        - Delete: Only can delet their permision unless there is only one permision, Authorized Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`)
         
-    if ':' in role_param:
-        role_type, role_id = role_param.split(':', 1)
-        return role_type.lower(), role_id
-    else:
-        # Allow role type without ID only if it's cedars_specialist for specific permissive actions
-        if role_param.lower() == 'cedars_specialist':
-             return role_param.lower(), None
-        else: # HKU members always require UID
-             return None, None # Invalid format for non-specialist roles
+    2.  **Accommodations (`/accommodations/`)**:
+        - List/Search: Authorized Member (`hku_member:uid`/`ust_member:uid`/`cu_member`) or Authorized Specialist (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`).
+        - Retrieve: Authorized Member (`hku_member:uid`/`ust_member:uid`/`cu_member`) or Authorized Specialist (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`).
+        - Create: Any Specialists (`hku_specialist[:id]/ust_specialist[:id]/cu_specialist[:id]`)
+        - Update:  Authorized Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`)
+        - Delete: Only can delet their permision unless there is only one permision, Authorized Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`)
+        - """`/search/` endpoint available for filtering.
+        - """*Note: `/accommodations/{id}/reservations/` endpoint is currently not implemented/exposed.*
+    3.  **HKU Members (`/hku-members/`)**:
+        - List/Create/Delete: Only HKU Specialists (`hku_specialist[:id]`).
+        - Retrieve/Update: HKU Specialists (`hku_specialist[:id]`) OR the specific HKU Member themselves (`hku_member:<uid>`).
+        - """List Reservations (`/hku-members/{uid}/reservations/`): Any HKU Specialists (`hku_specialist[:id]`) OR the specific HKU Member themselves (`hku_member:<uid>`).
+    4.  **HKU Specialists (`/hku-specialists/`)**: Only HKU Specialists (`hku_specialist[:id]`) can perform List, Create, Retrieve, Update, Delete (including managing other specialists).
+    5.  **UST Members (`/ust-members/`)**:
+        - List/Create/Delete: Only UST Specialists (`ust_specialist[:id]`).
+        - Retrieve/Update: UST Specialists (`ust_specialist[:id]`) OR the specific UST Member themselves (`ust_member:<uid>`).
+        - """List Reservations (`/ust-members/{uid}/reservations/`): Any UST Specialists (`ust_specialist[:id]`) OR the specific UST Member themselves (`ust_member:<uid>`).
+    6.  **UST Specialists (`/ust-specialists/`)**: Only UST Specialists (`ust_specialist[:id]`) can perform List, Create, Retrieve, Update, Delete (including managing other specialists).
+    7.  **CU Members (`/cu-members/`)**:
+        - List/Create/Delete: Only CU Specialists (`cu_specialist[:id]`).
+        - Retrieve/Update: CU Specialists (`cu_specialist[:id]`) OR the specific CU Member themselves (`cu_member:<uid>`).
+        - """List Reservations (`/cu-members/{uid}/reservations/`): Any CU Specialists (`cu_specialist[:id]`) OR the specific CU Member themselves (`cu_member:<uid>`).
+    8.  **CU Specialists (`/cu-specialists/`)**: Only CU Specialists (`cu_specialist[:id]`) can perform List, Create, Retrieve, Update, Delete (including managing other specialists).
+        - List Managed Accommodations (`/cedars-specialists/{id}/managed_accommodations/`): Only the specific CEDARS Specialist (`cedars_specialist:<id>`).
+    9.  **"""Reservations (`/reservations/`, `/reservations/create/`, `/reservations/{id}/cancel/`)**:
+        - List (`GET /reservations/`): Only Authorized Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`) - manual check implemented. Members use `/hku-members/{uid}/reservations/`,`/ust-members/{uid}/reservations/`,`/cu-members/{uid}/reservations/`.
+        - "Based on member can only search for accommodations that they can reserve" -->Create (`POST /reservations/create/`): Any Member (`hku_member:uid`/`ust_member:uid`/`cu_member`, for self) OR any Specialist (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`, requires `member_id` in request body) - manual check implemented.
+        - Retrieve (`GET /reservations/{id}/`): Specialist can only check  for the reservation made by their student (`*specialist[:id]`) OR the Member (`*member:uid`) who owns the reservation.
+        - "Based on speaialist can only retrieve reservation made by their student "Cancel (`POST /reservations/{id}/cancel/`): Any Specialist (`*_specialist[:id]`) OR the Member (`*_member:uid`) who owns the reservation - manual check implemented.
+        - Update (`PUT /reservations/{id}/`): Only Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`) - manual check implemented.
+        - Partial Update (`PATCH /reservations/{id}/`): **Disabled.** Use PUT for full updates.
+        - Delete (`DELETE /reservations/{id}/`): Only Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`).
+    10.  **Ratings (`/ratings/`, `/ratings/create/`)**:
+        - List (`GET /ratings/`): Any Only Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`) (can list all); Members (`hku_member:uid`/`ust_member:uid`/`cu_member`).
+        - Create (`POST /ratings/create/`): Only Members (`hku_member:uid`/`ust_member:uid`/`cu_member`) for their own completed reservations - manual check implemented.
+        - Retrieve (`GET /ratings/{id}/`): Any Specialist (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`) OR the Member (`hku_member:uid`/`ust_member:uid`/`cu_member`) "I thought student can retrieve?" who owns the rating's reservation.
+        - Update (`PUT /ratings/{id}/`): Onnly Specialists can update the rating created by their own student (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`) - manual check implemented.
+        - Delete (`DELETE /ratings/{id}/`): Only Specialists can delete the rating created by their own student (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`).
 
-class BaseRolePermission(permissions.BasePermission):
-    """
-    Base class for permissions checking the 'role' query parameter.
-    """
-    message = 'Invalid role or insufficient permissions.' # Default message
+    If you attempt to access an endpoint without the required role or permission, you should receive a 403 Forbidden or 400 Bad Request error with an appropriate error message.
 
-    def get_role(self, request):
-        return get_role_and_id_from_request(request)
+    ## Features
 
-# --- General Role Permissions --- 
+    - Specialists can manage accommodations, property owners, and handle reservations
+    - Members can search accommodations, make reservations that manage by their school, also rate their stays
+    - Property owners are managed entities in the system, not users with direct API access
+paths:
+  /accommodations/:
+    get:
+      operationId: accommodations_list
+      description: List all accommodations. Accessible by both HKU members and CEDARS
+        specialists.
+      summary: List all accommodations
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: 'User role (format: ''hku_member:uid'' or ''cedars_specialist[:id]'')'
+        required: true
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - accommodations
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAccommodationList'
+          description: ''
+    post:
+      operationId: accommodations_create
+      description: Create a new accommodation listing. Only CEDARS specialists can
+        perform this action.
+      summary: Create accommodation (Specialists Only)
+      parameters:
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - accommodations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccommodationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AccommodationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AccommodationRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accommodation'
+          description: ''
+  /accommodations/{id}/:
+    get:
+      operationId: accommodations_retrieve
+      description: Retrieve details for a specific accommodation. Accessible by both
+        HKU members and CEDARS specialists.
+      summary: Retrieve an accommodation
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this accommodation.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: 'User role (format: ''hku_member:uid'' or ''cedars_specialist[:id]'')'
+        required: true
+      tags:
+      - accommodations
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accommodation'
+          description: ''
+    put:
+      operationId: accommodations_update
+      description: Update an accommodation listing. Only CEDARS specialists can perform
+        this action.
+      summary: Update accommodation (Specialists Only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this accommodation.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - accommodations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccommodationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AccommodationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AccommodationRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accommodation'
+          description: ''
+    patch:
+      operationId: accommodations_partial_update
+      description: Partially update an accommodation listing. Only CEDARS specialists
+        can perform this action.
+      summary: Partially update accommodation (Specialists Only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this accommodation.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - accommodations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAccommodationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAccommodationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAccommodationRequest'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accommodation'
+          description: ''
+    delete:
+      operationId: accommodations_destroy
+      description: Delete an accommodation listing. Only CEDARS specialists can perform
+        this action.
+      summary: Delete accommodation (Specialists Only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this accommodation.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - accommodations
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '204':
+          description: No response body
+  /accommodations/search/:
+    get:
+      operationId: accommodations_search_list
+      description: Custom search endpoint for accommodations with advanced filtering.
+        Accessible by both HKU members and CEDARS specialists.
+      summary: Search for accommodations
+      parameters:
+      - in: query
+        name: available_from
+        schema:
+          type: string
+          format: date
+        description: Filter by availability start date (YYYY-MM-DD)
+      - in: query
+        name: available_until
+        schema:
+          type: string
+          format: date
+        description: Filter by availability end date (YYYY-MM-DD)
+      - in: query
+        name: bedrooms
+        schema:
+          type: integer
+        description: Filter by exact number of bedrooms
+      - in: query
+        name: beds
+        schema:
+          type: integer
+        description: Filter by exact number of beds
+      - in: query
+        name: distance_from
+        schema:
+          type: string
+        description: Calculate and sort by distance from a specified HKU location
+          (e.g., 'Main Campus', 'Sassoon Road') or address
+      - in: query
+        name: max_price
+        schema:
+          type: number
+          format: float
+        description: Filter by maximum daily price
+      - in: query
+        name: min_bedrooms
+        schema:
+          type: integer
+        description: Filter by minimum number of bedrooms
+      - in: query
+        name: min_beds
+        schema:
+          type: integer
+        description: Filter by minimum number of beds
+      - in: query
+        name: min_rating
+        schema:
+          type: number
+          format: float
+        description: Filter by minimum average rating (e.g., 4.0)
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: rating
+        schema:
+          type: number
+          format: float
+        description: Filter by exact average rating (e.g., 4.5)
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: 'User role (format: ''hku_member:uid'' or ''cedars_specialist[:id]'')'
+        required: true
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: type
+        schema:
+          type: string
+        description: Filter by accommodation type (e.g., 'apartment', 'house')
+      tags:
+      - accommodations
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAccommodationList'
+          description: ''
+  /cedars-specialists/:
+    get:
+      operationId: cedars_specialists_list
+      description: List all CEDARS specialists. Only CEDARS specialists can perform
+        this action.
+      summary: List CEDARS specialists (Specialists Only)
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - cedars-specialists
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCEDARSSpecialistList'
+          description: ''
+    post:
+      operationId: cedars_specialists_create
+      description: Create a new CEDARS specialist. Only CEDARS specialists can create
+        new specialists.
+      summary: Create CEDARS specialist (Specialists Only)
+      parameters:
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - cedars-specialists
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CEDARSSpecialistRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CEDARSSpecialistRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CEDARSSpecialistRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CEDARSSpecialist'
+          description: ''
+  /cedars-specialists/{id}/:
+    get:
+      operationId: cedars_specialists_retrieve
+      description: Retrieve a CEDARS specialist by ID. Only CEDARS specialists can
+        view specialist details.
+      summary: Retrieve CEDARS specialist (Specialists Only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this cedars specialist.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - cedars-specialists
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CEDARSSpecialist'
+          description: ''
+    put:
+      operationId: cedars_specialists_update
+      description: Update a CEDARS specialist by ID. Only CEDARS specialists can update
+        specialists.
+      summary: Update CEDARS specialist (Specialists Only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this cedars specialist.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - cedars-specialists
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CEDARSSpecialistRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CEDARSSpecialistRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CEDARSSpecialistRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CEDARSSpecialist'
+          description: ''
+    patch:
+      operationId: cedars_specialists_partial_update
+      description: Partially update a CEDARS specialist by ID. Only CEDARS specialists
+        can update specialists.
+      summary: Partially update CEDARS specialist (Specialists Only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this cedars specialist.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - cedars-specialists
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCEDARSSpecialistRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCEDARSSpecialistRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCEDARSSpecialistRequest'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CEDARSSpecialist'
+          description: ''
+    delete:
+      operationId: cedars_specialists_destroy
+      description: Delete a CEDARS specialist by ID. Only CEDARS specialists can delete
+        specialists.
+      summary: Delete CEDARS specialist (Specialists Only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this cedars specialist.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - cedars-specialists
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '204':
+          description: No response body
+  /hku-members/:
+    get:
+      operationId: hku_members_list
+      description: List all HKU members. Only CEDARS specialists can perform this
+        action.
+      summary: List HKU members (Specialists Only)
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - hku-members
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedHKUMemberList'
+          description: ''
+    post:
+      operationId: hku_members_create
+      description: Create a new HKU member. Only CEDARS specialists can perform this
+        action.
+      summary: Create HKU member (Specialists Only)
+      parameters:
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - hku-members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HKUMemberRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/HKUMemberRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/HKUMemberRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HKUMember'
+          description: ''
+  /hku-members/{uid}/:
+    get:
+      operationId: hku_members_retrieve
+      description: Retrieve a HKU member by UID. CEDARS specialists can retrieve any
+        member. HKU members can only retrieve their own details (matching UID in role).
+      summary: Retrieve a HKU member
+      parameters:
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: 'User role with ID (format: ''hku_member:uid'' or ''cedars_specialist[:id]'')
+          identifying the requester.'
+        required: true
+      - in: path
+        name: uid
+        schema:
+          type: string
+        description: A unique value identifying this hku member.
+        required: true
+      tags:
+      - hku-members
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HKUMember'
+          description: ''
+    put:
+      operationId: hku_members_update
+      description: Update a HKU member by UID. CEDARS specialists can update any member.
+        HKU members can only update their own details (matching UID in role).
+      summary: Update a HKU member
+      parameters:
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: 'User role with ID (format: ''hku_member:uid'' or ''cedars_specialist[:id]'')
+          identifying the requester.'
+        required: true
+      - in: path
+        name: uid
+        schema:
+          type: string
+        description: A unique value identifying this hku member.
+        required: true
+      tags:
+      - hku-members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HKUMemberRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/HKUMemberRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/HKUMemberRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HKUMember'
+          description: ''
+    patch:
+      operationId: hku_members_partial_update
+      description: Partially update a HKU member by UID. CEDARS specialists can update
+        any member. HKU members can only update their own details (matching UID in
+        role).
+      summary: Partially update a HKU member
+      parameters:
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: 'User role with ID (format: ''hku_member:uid'' or ''cedars_specialist[:id]'')
+          identifying the requester.'
+        required: true
+      - in: path
+        name: uid
+        schema:
+          type: string
+        description: A unique value identifying this hku member.
+        required: true
+      tags:
+      - hku-members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedHKUMemberRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedHKUMemberRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedHKUMemberRequest'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HKUMember'
+          description: ''
+    delete:
+      operationId: hku_members_destroy
+      description: Delete a HKU member by UID. Only CEDARS specialists can perform
+        this action.
+      summary: Delete HKU member (Specialists Only)
+      parameters:
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      - in: path
+        name: uid
+        schema:
+          type: string
+        description: A unique value identifying this hku member.
+        required: true
+      tags:
+      - hku-members
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '204':
+          description: No response body
+  /hku-members/{uid}/reservations/:
+    get:
+      operationId: hku_members_reservations_list
+      description: |-
+        Get all reservations for a specific HKU member (identified by UID in URL).
+        HKU members can only view their own reservations (matching UID in role). CEDARS specialists can view any HKU member's reservations.
+      summary: List reservations for a HKU member
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: 'User role with ID (format: ''hku_member:uid'' or ''cedars_specialist:id'')
+          identifying the requester.'
+        required: true
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - cancelled
+          - completed
+          - confirmed
+          - pending
+        description: Filter reservations by status
+      - in: path
+        name: uid
+        schema:
+          type: string
+        description: A unique value identifying this hku member.
+        required: true
+      tags:
+      - hku-members
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedReservationList'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /property-owners/:
+    get:
+      operationId: property_owners_list
+      description: List all property owners. Only CEDARS specialists can perform this
+        action.
+      summary: List property owners (Specialists Only)
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - property-owners
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPropertyOwnerList'
+          description: ''
+    post:
+      operationId: property_owners_create
+      description: Create a new property owner. Only CEDARS specialists can perform
+        this action.
+      summary: Create property owner (Specialists Only)
+      parameters:
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - property-owners
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyOwnerRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PropertyOwnerRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PropertyOwnerRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyOwner'
+          description: ''
+  /property-owners/{id}/:
+    get:
+      operationId: property_owners_retrieve
+      description: Retrieve details of a specific property owner. Only CEDARS specialists
+        can perform this action.
+      summary: Retrieve property owner (Specialists Only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this property owner.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - property-owners
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyOwner'
+          description: ''
+    put:
+      operationId: property_owners_update
+      description: Update a property owner. Only CEDARS specialists can perform this
+        action.
+      summary: Update property owner (Specialists Only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this property owner.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - property-owners
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyOwnerRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PropertyOwnerRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PropertyOwnerRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyOwner'
+          description: ''
+    patch:
+      operationId: property_owners_partial_update
+      description: Partially update a property owner. Only CEDARS specialists can
+        perform this action.
+      summary: Partially update property owner (Specialists Only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this property owner.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - property-owners
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPropertyOwnerRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPropertyOwnerRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPropertyOwnerRequest'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyOwner'
+          description: ''
+    delete:
+      operationId: property_owners_destroy
+      description: Delete a property owner. Only CEDARS specialists can perform this
+        action.
+      summary: Delete property owner (Specialists Only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this property owner.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - property-owners
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '204':
+          description: No response body
+  /ratings/:
+    get:
+      operationId: ratings_list
+      description: List ratings. CEDARS specialists can list all ratings and filter.
+        HKU members can only list their own ratings. Uses manual role check.
+      summary: List ratings
+      parameters:
+      - in: query
+        name: accommodation_id
+        schema:
+          type: integer
+        description: Filter by accommodation ID
+      - in: query
+        name: member_id
+        schema:
+          type: string
+        description: Filter by HKU member UID (only usable by CEDARS Specialists)
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: reservation_id
+        schema:
+          type: integer
+        description: Filter by reservation ID
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: 'User role with ID (format: ''hku_member:uid'' or ''cedars_specialist[:id]'')'
+        required: true
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - ratings
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRatingList'
+          description: ''
+  /ratings/{id}/:
+    get:
+      operationId: ratings_retrieve
+      description: Retrieve details of a specific rating. HKU members can only retrieve
+        ratings for their own reservations. CEDARS specialists can retrieve any rating.
+        Uses manual role check.
+      summary: Retrieve a rating
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this rating.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: 'User role with ID (format: ''hku_member:uid'' or ''cedars_specialist[:id]'')
+          identifying the requester.'
+        required: true
+      tags:
+      - ratings
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rating'
+          description: ''
+    put:
+      operationId: ratings_update
+      description: Update a rating. Only CEDARS specialists can perform this action.
+        Uses manual role check.
+      summary: Update rating (Specialists Only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this rating.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - ratings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RatingRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RatingRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RatingRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rating'
+          description: ''
+    patch:
+      operationId: ratings_partial_update
+      description: Partially update a rating. Only CEDARS specialists can perform
+        this action. Uses manual role check.
+      summary: Partially update rating (Specialists Only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this rating.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - ratings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedRatingRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedRatingRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedRatingRequest'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rating'
+          description: ''
+    delete:
+      operationId: ratings_destroy
+      description: Delete a rating. Only CEDARS specialists can delete ratings. Uses
+        manual role check.
+      summary: Delete rating (Specialists Only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this rating.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - ratings
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /ratings/create/:
+    post:
+      operationId: ratings_create_create
+      description: Rate an accommodation for a completed reservation. Only the HKU
+        member associated with the reservation (matching UID in role) can create a
+        rating. Uses manual role check.
+      summary: Create a new rating (HKU Members Only)
+      parameters:
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: 'User role with ID (format: ''hku_member:uid'')'
+        required: true
+      tags:
+      - ratings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RateAccommodationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RateAccommodationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RateAccommodationRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rating'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /reservations/:
+    get:
+      operationId: reservations_list
+      description: List all reservations. Only CEDARS specialists can list all reservations.
+        HKU members should use `/hku-members/{uid}/reservations/`. Uses manual role
+        check.
+      summary: List reservations (Specialists Only)
+      parameters:
+      - in: query
+        name: accommodation_id
+        schema:
+          type: integer
+        description: Filter by accommodation ID
+      - in: query
+        name: member_id
+        schema:
+          type: string
+        description: Filter by HKU member UID
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - cancelled
+          - completed
+          - confirmed
+          - pending
+        description: Filter by reservation status
+      tags:
+      - reservations
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedReservationList'
+          description: ''
+  /reservations/{id}/:
+    get:
+      operationId: reservations_retrieve
+      description: Retrieve details of a specific reservation. HKU members can only
+        retrieve their own reservations. CEDARS specialists can retrieve any reservation.
+        Uses manual role check.
+      summary: Retrieve a reservation
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this reservation.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: 'User role with ID (format: ''hku_member:uid'' or ''cedars_specialist[:id]'')
+          identifying the requester.'
+        required: true
+      tags:
+      - reservations
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+          description: ''
+    put:
+      operationId: reservations_update
+      description: Update a reservation. Only CEDARS specialists can perform this
+        action. Uses manual role check.
+      summary: Update reservation (Specialists Only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this reservation.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - reservations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReservationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReservationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReservationRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+          description: ''
+    delete:
+      operationId: reservations_destroy
+      description: Delete a reservation. Only CEDARS specialists can delete reservations.
+        Uses manual role check.
+      summary: Delete reservation (Specialists Only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this reservation.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: User role (must be 'cedars_specialist[:id]')
+        required: true
+      tags:
+      - reservations
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '204':
+          description: No response body
+  /reservations/{id}/cancel/:
+    post:
+      operationId: reservations_cancel_create
+      description: Cancel an existing reservation. HKU members can cancel their own
+        pending/confirmed reservations before the end date. CEDARS specialists can
+        cancel any reservation. Uses manual role check.
+      summary: Cancel a reservation
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this reservation.
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: 'User role with ID (format: ''hku_member:uid'' or ''cedars_specialist[:id]'')'
+        required: true
+      tags:
+      - reservations
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /reservations/create/:
+    post:
+      operationId: reservations_create_create
+      description: Create a new reservation. HKU members use 'hku_member:uid' and
+        the system uses the UID. CEDARS specialists use 'cedars_specialist[:id]' and
+        must provide 'member_id' (HKU member UID) in the request body.
+      summary: Create a new reservation
+      parameters:
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: 'User role with ID (format: ''hku_member:uid'' or ''cedars_specialist[:id]'')'
+        required: true
+      tags:
+      - reservations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReserveAccommodationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReserveAccommodationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReserveAccommodationRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+          description: ''
+components:
+  schemas:
+    Accommodation:
+      type: object
+      description: |-
+        Serializer for the Accommodation model.
 
-class IsAnyCEDARSSpecialist(BaseRolePermission):
-    """
-    Allows access only if the role is 'cedars_specialist' (ID optional).
-    Used for actions any specialist can perform without targeting a specific object.
-    """
-    message = 'This action requires a CEDARS Specialist role.'
-    def has_permission(self, request, view):
-        role_type, _ = self.get_role(request)
-        return role_type == 'cedars_specialist'
+        Provides comprehensive serialization for accommodation listings with support for:
+        - Creating/updating accommodations
+        - Handling property owner relationships
+        - Validating dates and numeric fields
+        - Automatic geocoding of addresses
 
-class IsAnyHKUMemberOrCEDARSSpecialist(BaseRolePermission):
-    """
-    Allows access if the role is 'hku_member:<uid>' or 'cedars_specialist[:id]'.
-    Used for actions accessible to both roles (e.g., viewing accommodations).
-    """
-    message = 'This action requires a HKU Member or CEDARS Specialist role.'
-    def has_permission(self, request, view):
-        role_type, role_id = self.get_role(request)
-        if role_type == 'hku_member' and role_id:
-            return True
-        if role_type == 'cedars_specialist': # ID optional for specialist
-            return True
-        return False
+        Fields:
+            id (int): Unique identifier (read-only)
+            type (str): Type of accommodation
+            address (str): Physical address
+            latitude (float): Latitude coordinate (read-only, auto-populated)
+            longitude (float): Longitude coordinate (read-only, auto-populated)
+            geo_address (str): Geocoded address (read-only, auto-populated)
+            available_from (date): Start date of availability
+            available_until (date): End date of availability
+            beds (int): Number of beds (min: 0)
+            bedrooms (int): Number of bedrooms (min: 0)
+            daily_price (Decimal): Price per day (min: 0.01)
+            owner (PropertyOwnerSerializer): Nested serializer for owner details
+            owner_id (int): ID for selecting existing owner (write-only)
+            specialist (CEDARSSpecialistSerializer): Nested serializer for specialist details
+            specialist_id (int): ID for selecting existing specialist (write-only)
+            average_rating (float): Average rating based on associated ratings
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        type:
+          enum:
+          - apartment
+          - house
+          - villa
+          - studio
+          - hostel
+          type: string
+          description: |-
+            * `apartment` - Apartment
+            * `house` - House
+            * `villa` - Villa
+            * `studio` - Studio
+            * `hostel` - Hostel
+          x-spec-enum-id: 485b134c5c066a7a
+        address:
+          type: string
+          maxLength: 255
+        latitude:
+          type: number
+          format: double
+          readOnly: true
+        longitude:
+          type: number
+          format: double
+          readOnly: true
+        geo_address:
+          type: string
+          readOnly: true
+        available_from:
+          type: string
+          format: date
+        available_until:
+          type: string
+          format: date
+        beds:
+          type: integer
+          minimum: 0
+          title: Number of beds (must be 0 or greater)
+        bedrooms:
+          type: integer
+          minimum: 0
+          title: Number of bedrooms (must be 0 or greater)
+        average_rating:
+          type: number
+          format: double
+          readOnly: true
+        daily_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          title: Daily price (positive amount)
+        owner:
+          allOf:
+          - $ref: '#/components/schemas/PropertyOwner'
+          readOnly: true
+        specialist:
+          allOf:
+          - $ref: '#/components/schemas/CEDARSSpecialist'
+          readOnly: true
+      required:
+      - address
+      - available_from
+      - available_until
+      - average_rating
+      - bedrooms
+      - beds
+      - daily_price
+      - geo_address
+      - id
+      - latitude
+      - longitude
+      - owner
+      - specialist
+      - type
+    AccommodationRequest:
+      type: object
+      description: |-
+        Serializer for the Accommodation model.
 
-# --- Specific Resource Permissions --- 
+        Provides comprehensive serialization for accommodation listings with support for:
+        - Creating/updating accommodations
+        - Handling property owner relationships
+        - Validating dates and numeric fields
+        - Automatic geocoding of addresses
 
-# Property Owners: Only CEDARS Specialists
-# Use IsAnyCEDARSSpecialist for all actions.
+        Fields:
+            id (int): Unique identifier (read-only)
+            type (str): Type of accommodation
+            address (str): Physical address
+            latitude (float): Latitude coordinate (read-only, auto-populated)
+            longitude (float): Longitude coordinate (read-only, auto-populated)
+            geo_address (str): Geocoded address (read-only, auto-populated)
+            available_from (date): Start date of availability
+            available_until (date): End date of availability
+            beds (int): Number of beds (min: 0)
+            bedrooms (int): Number of bedrooms (min: 0)
+            daily_price (Decimal): Price per day (min: 0.01)
+            owner (PropertyOwnerSerializer): Nested serializer for owner details
+            owner_id (int): ID for selecting existing owner (write-only)
+            specialist (CEDARSSpecialistSerializer): Nested serializer for specialist details
+            specialist_id (int): ID for selecting existing specialist (write-only)
+            average_rating (float): Average rating based on associated ratings
+      properties:
+        type:
+          enum:
+          - apartment
+          - house
+          - villa
+          - studio
+          - hostel
+          type: string
+          description: |-
+            * `apartment` - Apartment
+            * `house` - House
+            * `villa` - Villa
+            * `studio` - Studio
+            * `hostel` - Hostel
+          x-spec-enum-id: 485b134c5c066a7a
+        address:
+          type: string
+          minLength: 1
+          maxLength: 255
+        available_from:
+          type: string
+          format: date
+        available_until:
+          type: string
+          format: date
+        beds:
+          type: integer
+          minimum: 0
+          title: Number of beds (must be 0 or greater)
+        bedrooms:
+          type: integer
+          minimum: 0
+          title: Number of bedrooms (must be 0 or greater)
+        daily_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          title: Daily price (positive amount)
+        owner_id:
+          type: integer
+          writeOnly: true
+          nullable: true
+          title: Select existing owner (leave blank for new owner)
+        owner_name:
+          type: string
+          writeOnly: true
+          minLength: 1
+          title: New owner name (only if creating new owner)
+        owner_phone:
+          type: string
+          writeOnly: true
+          minLength: 1
+          title: New owner phone number (only if creating new owner)
+        specialist_id:
+          type: integer
+          writeOnly: true
+          nullable: true
+          title: Select managing specialist
+      required:
+      - address
+      - available_from
+      - available_until
+      - bedrooms
+      - beds
+      - daily_price
+      - type
+    CEDARSSpecialist:
+      type: object
+      description: |-
+        Serializer for the CEDARSSpecialist model.
 
-# Accommodations:
-# - List/Retrieve/Search: IsAnyHKUMemberOrCEDARSSpecialist
-# - Create/Update/Delete: IsAnyCEDARSSpecialist
-# - reservations action: IsAnyCEDARSSpecialist
+        Handles serialization and deserialization of CEDARS specialist objects.
 
-# HKU Members:
-class CanRetrieveUpdateHKUMember(BaseRolePermission):
-    """
-    Allows CEDARS Specialists OR the specific HKU Member.
-    """
-    message = 'Only CEDARS Specialists or the specific HKU Member can perform this action.'
-    def has_permission(self, request, view):
-        # Check if the role format is valid first
-        role_type, role_id = self.get_role(request)
-        if role_type == 'cedars_specialist':
-             return True
-        if role_type == 'hku_member' and role_id:
-             return True
-        return False
-        
-    def has_object_permission(self, request, view, obj):
-        role_type, role_id = self.get_role(request)
-        if role_type == 'cedars_specialist':
-            return True # Specialists can access any member
-        if role_type == 'hku_member' and role_id:
-             # obj is the HKUMember instance here
-            return obj.uid == role_id
-        return False
+        Fields:
+            id (int): Unique identifier
+            name (str): Name of the CEDARS specialist
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+      required:
+      - id
+      - name
+    CEDARSSpecialistRequest:
+      type: object
+      description: |-
+        Serializer for the CEDARSSpecialist model.
 
-# CEDARS Specialists: Only CEDARS Specialists
-# Use IsAnyCEDARSSpecialist for all actions.
+        Handles serialization and deserialization of CEDARS specialist objects.
 
-# Reservations:
-class CanListReservations(BaseRolePermission):
-    """
-    Allows CEDARS Specialists to list all, or HKU members to list their own (via member endpoint).
-    NOTE: This permission is tricky for the main /reservations/ list endpoint.
-    It's easier to handle the filtering logic within the view itself, 
-    so we just check if the user is a valid role type here.
-    The view will filter based on role_id if hku_member.
-    """
-    message = 'Requires CEDARS Specialist or HKU Member role.'
-    def has_permission(self, request, view):
-        role_type, role_id = self.get_role(request)
-        # Allow CEDARS specialist (ID optional) or HKU member (ID required)
-        return role_type == 'cedars_specialist' or (role_type == 'hku_member' and role_id)
+        Fields:
+            id (int): Unique identifier
+            name (str): Name of the CEDARS specialist
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+      required:
+      - name
+    HKUMember:
+      type: object
+      description: |-
+        Serializer for the HKUMember model.
 
-class CanCreateReservation(BaseRolePermission):
-    """
-    Allows HKU members (for self) or CEDARS specialists (for any specified member).
-    """
-    message = 'HKU Members can reserve for self; CEDARS Specialists can reserve for any member.'
-    def has_permission(self, request, view):
-        role_type, role_id = self.get_role(request)
-        if role_type == 'cedars_specialist':
-             # Specialist needs member_id in request data, checked in view
-             return True
-        if role_type == 'hku_member' and role_id:
-             # Member must have UID
-             return True
-        return False
+        Handles serialization and deserialization of HKU member objects.
 
-class CanAccessReservationObject(BaseRolePermission):
-    """
-    Object-level permission: Allows CEDARS Specialists OR the HKU Member owner.
-    Used for Retrieve, Cancel.
-    """
-    message = 'Only CEDARS Specialists or the reservation owner can perform this action.'
-    def has_permission(self, request, view):
-        role_type, role_id = self.get_role(request)
-        # --- DEBUGGING PRINT --- 
-        print(f"[DEBUG] CanAccessReservationObject: Checking has_permission for role_type='{role_type}', role_id='{role_id}'")
-        # --- END DEBUGGING --- 
-        if role_type == 'cedars_specialist':
-             return True
-        if role_type == 'hku_member' and role_id:
-             return True
-        return False
+        Fields:
+            uid (str): Unique identifier (primary key)
+            name (str): Name of the HKU member
+      properties:
+        uid:
+          type: string
+          maxLength: 255
+        name:
+          type: string
+          maxLength: 255
+      required:
+      - name
+      - uid
+    HKUMemberRequest:
+      type: object
+      description: |-
+        Serializer for the HKUMember model.
 
-    def has_object_permission(self, request, view, obj):
-        role_type, role_id = self.get_role(request)
-        # --- DEBUGGING PRINT --- 
-        print(f"[DEBUG] CanAccessReservationObject: Checking object permission for role_type='{role_type}', role_id='{role_id}'")
-        # --- END DEBUGGING --- 
-        if role_type == 'cedars_specialist':
-             # --- DEBUGGING PRINT --- 
-            print(f"[DEBUG] CanAccessReservationObject: Allowing CEDARS specialist.")
-            # --- END DEBUGGING --- 
-            return True # Specialists can access any reservation
-        if role_type == 'hku_member' and role_id:
-             # obj is the Reservation instance here
-             # Ensure the reservation has a member linked correctly
-            allowed = hasattr(obj, 'member') and obj.member.uid == role_id
-             # --- DEBUGGING PRINT --- 
-            print(f"[DEBUG] CanAccessReservationObject: HKU member check - allowed={allowed}")
-            # --- END DEBUGGING --- 
-            return allowed
-        # --- DEBUGGING PRINT --- 
-        print(f"[DEBUG] CanAccessReservationObject: Denying by default.")
-        # --- END DEBUGGING --- 
-        return False
+        Handles serialization and deserialization of HKU member objects.
 
-# Ratings:
-class CanListRatings(BaseRolePermission):
-    """
-    Allows CEDARS Specialists to list all, or HKU members to list their own.
-    Similar to CanListReservations, view handles filtering for HKU members.
-    """
-    message = 'Requires CEDARS Specialist or HKU Member role.'
-    def has_permission(self, request, view):
-        role_type, role_id = self.get_role(request)
-        return role_type == 'cedars_specialist' or (role_type == 'hku_member' and role_id)
+        Fields:
+            uid (str): Unique identifier (primary key)
+            name (str): Name of the HKU member
+      properties:
+        uid:
+          type: string
+          minLength: 1
+          maxLength: 255
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+      required:
+      - name
+      - uid
+    PaginatedAccommodationList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Accommodation'
+    PaginatedCEDARSSpecialistList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CEDARSSpecialist'
+    PaginatedHKUMemberList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/HKUMember'
+    PaginatedPropertyOwnerList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyOwner'
+    PaginatedRatingList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Rating'
+    PaginatedReservationList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Reservation'
+    PatchedAccommodationRequest:
+      type: object
+      description: |-
+        Serializer for the Accommodation model.
 
-class CanCreateRating(BaseRolePermission):
-    """
-    Allows only HKU members to create ratings for their own completed reservations.
-    Further checks (completion, ownership) happen in the view.
-    """
-    message = 'Only HKU Members can create ratings.'
-    def has_permission(self, request, view):
-        role_type, role_id = self.get_role(request)
-        return role_type == 'hku_member' and role_id is not None
+        Provides comprehensive serialization for accommodation listings with support for:
+        - Creating/updating accommodations
+        - Handling property owner relationships
+        - Validating dates and numeric fields
+        - Automatic geocoding of addresses
 
-class CanAccessRatingObject(BaseRolePermission):
-    """
-    Object-level permission: Allows CEDARS Specialists OR the HKU Member owner of the rating's reservation.
-    Used for Retrieve.
-    """
-    message = 'Only CEDARS Specialists or the rating owner can perform this action.'
-    def has_permission(self, request, view):
-        # Check if the role format is valid first
-        role_type, role_id = self.get_role(request)
-        if role_type == 'cedars_specialist':
-             return True
-        if role_type == 'hku_member' and role_id:
-             return True
-        return False
+        Fields:
+            id (int): Unique identifier (read-only)
+            type (str): Type of accommodation
+            address (str): Physical address
+            latitude (float): Latitude coordinate (read-only, auto-populated)
+            longitude (float): Longitude coordinate (read-only, auto-populated)
+            geo_address (str): Geocoded address (read-only, auto-populated)
+            available_from (date): Start date of availability
+            available_until (date): End date of availability
+            beds (int): Number of beds (min: 0)
+            bedrooms (int): Number of bedrooms (min: 0)
+            daily_price (Decimal): Price per day (min: 0.01)
+            owner (PropertyOwnerSerializer): Nested serializer for owner details
+            owner_id (int): ID for selecting existing owner (write-only)
+            specialist (CEDARSSpecialistSerializer): Nested serializer for specialist details
+            specialist_id (int): ID for selecting existing specialist (write-only)
+            average_rating (float): Average rating based on associated ratings
+      properties:
+        type:
+          enum:
+          - apartment
+          - house
+          - villa
+          - studio
+          - hostel
+          type: string
+          description: |-
+            * `apartment` - Apartment
+            * `house` - House
+            * `villa` - Villa
+            * `studio` - Studio
+            * `hostel` - Hostel
+          x-spec-enum-id: 485b134c5c066a7a
+        address:
+          type: string
+          minLength: 1
+          maxLength: 255
+        available_from:
+          type: string
+          format: date
+        available_until:
+          type: string
+          format: date
+        beds:
+          type: integer
+          minimum: 0
+          title: Number of beds (must be 0 or greater)
+        bedrooms:
+          type: integer
+          minimum: 0
+          title: Number of bedrooms (must be 0 or greater)
+        daily_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          title: Daily price (positive amount)
+        owner_id:
+          type: integer
+          writeOnly: true
+          nullable: true
+          title: Select existing owner (leave blank for new owner)
+        owner_name:
+          type: string
+          writeOnly: true
+          minLength: 1
+          title: New owner name (only if creating new owner)
+        owner_phone:
+          type: string
+          writeOnly: true
+          minLength: 1
+          title: New owner phone number (only if creating new owner)
+        specialist_id:
+          type: integer
+          writeOnly: true
+          nullable: true
+          title: Select managing specialist
+    PatchedCEDARSSpecialistRequest:
+      type: object
+      description: |-
+        Serializer for the CEDARSSpecialist model.
 
-    def has_object_permission(self, request, view, obj):
-        role_type, role_id = self.get_role(request)
-        if role_type == 'cedars_specialist':
-            return True # Specialists can access any rating
-        if role_type == 'hku_member' and role_id:
-             # obj is the Rating instance here
-             # Ensure the rating has a reservation and member linked correctly
-            return hasattr(obj, 'reservation') and hasattr(obj.reservation, 'member') and obj.reservation.member.uid == role_id
-        return False
+        Handles serialization and deserialization of CEDARS specialist objects.
 
-# --- DEPRECATED / UNUSED --- 
-# Keeping original classes here for reference, but they are not used
-# because they rely on request.user which is not how roles are passed.
+        Fields:
+            id (int): Unique identifier
+            name (str): Name of the CEDARS specialist
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+    PatchedHKUMemberRequest:
+      type: object
+      description: |-
+        Serializer for the HKUMember model.
 
-# class IsHKUMember(permissions.BasePermission):
-#     ...
+        Handles serialization and deserialization of HKU member objects.
 
-# class IsCEDARSSpecialist(permissions.BasePermission):
-#     ...
+        Fields:
+            uid (str): Unique identifier (primary key)
+            name (str): Name of the HKU member
+      properties:
+        uid:
+          type: string
+          minLength: 1
+          maxLength: 255
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+    PatchedPropertyOwnerRequest:
+      type: object
+      description: |-
+        Serializer for the PropertyOwner model.
 
-# class IsPropertyOwner(permissions.BasePermission):
-#     ...
+        Handles serialization and deserialization of PropertyOwner objects.
 
-# class IsOwnerOrCEDARSSpecialist(permissions.BasePermission):
-#     ... 
+        Fields:
+            id (int): Unique identifier
+            name (str): Name of the property owner
+            phone_no (str): Phone number of the property owner
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        phone_no:
+          type: string
+          minLength: 1
+          maxLength: 255
+    PatchedRatingRequest:
+      type: object
+      description: |-
+        Serializer for the Rating model.
+
+        Handles serialization and deserialization of Rating objects.
+
+        Fields:
+            id (int): Unique identifier
+            score (int): Rating score (0-5)
+            date_rated (date): Date when the rating was submitted
+            comment (str): Optional comment for the rating
+            reservation (int): ID of the associated reservation
+      properties:
+        score:
+          type: integer
+          maximum: 5
+          minimum: 0
+        comment:
+          type: string
+          nullable: true
+        reservation:
+          type: integer
+    PropertyOwner:
+      type: object
+      description: |-
+        Serializer for the PropertyOwner model.
+
+        Handles serialization and deserialization of PropertyOwner objects.
+
+        Fields:
+            id (int): Unique identifier
+            name (str): Name of the property owner
+            phone_no (str): Phone number of the property owner
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        phone_no:
+          type: string
+          maxLength: 255
+      required:
+      - id
+      - name
+      - phone_no
+    PropertyOwnerRequest:
+      type: object
+      description: |-
+        Serializer for the PropertyOwner model.
+
+        Handles serialization and deserialization of PropertyOwner objects.
+
+        Fields:
+            id (int): Unique identifier
+            name (str): Name of the property owner
+            phone_no (str): Phone number of the property owner
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        phone_no:
+          type: string
+          minLength: 1
+          maxLength: 255
+      required:
+      - name
+      - phone_no
+    RateAccommodationRequest:
+      type: object
+      description: |-
+        Serializer for rating an accommodation.
+
+        Fields:
+            reservation_id (int): ID of the reservation to rate
+            score (int): Rating score (0-5)
+            comment (str): Optional comment for the rating
+      properties:
+        reservation_id:
+          type: integer
+        score:
+          type: integer
+          maximum: 5
+          minimum: 0
+        comment:
+          type: string
+      required:
+      - reservation_id
+      - score
+    Rating:
+      type: object
+      description: |-
+        Serializer for the Rating model.
+
+        Handles serialization and deserialization of Rating objects.
+
+        Fields:
+            id (int): Unique identifier
+            score (int): Rating score (0-5)
+            date_rated (date): Date when the rating was submitted
+            comment (str): Optional comment for the rating
+            reservation (int): ID of the associated reservation
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        score:
+          type: integer
+          maximum: 5
+          minimum: 0
+        date_rated:
+          type: string
+          format: date
+          readOnly: true
+        comment:
+          type: string
+          nullable: true
+        reservation:
+          type: integer
+      required:
+      - date_rated
+      - id
+      - reservation
+      - score
+    RatingRequest:
+      type: object
+      description: |-
+        Serializer for the Rating model.
+
+        Handles serialization and deserialization of Rating objects.
+
+        Fields:
+            id (int): Unique identifier
+            score (int): Rating score (0-5)
+            date_rated (date): Date when the rating was submitted
+            comment (str): Optional comment for the rating
+            reservation (int): ID of the associated reservation
+      properties:
+        score:
+          type: integer
+          maximum: 5
+          minimum: 0
+        comment:
+          type: string
+          nullable: true
+        reservation:
+          type: integer
+      required:
+      - reservation
+      - score
+    Reservation:
+      type: object
+      description: |-
+        Serializer for the Reservation model.
+
+        Handles serialization and deserialization of Reservation objects.
+
+        Fields:
+            id (int): Unique identifier
+            status (str): Status of the reservation
+            start_date (date): Start date of the reservation
+            end_date (date): End date of the reservation
+            cancelled_by (str): Who cancelled the reservation (if applicable)
+            member (HKUMemberSerializer): The HKU member making the reservation
+            accommodation (AccommodationSerializer): The accommodation being reserved
+            rating (RatingSerializer): Associated rating (if any)
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        status:
+          enum:
+          - pending
+          - confirmed
+          - cancelled
+          - completed
+          type: string
+          description: |-
+            * `pending` - Pending
+            * `confirmed` - Confirmed
+            * `cancelled` - Cancelled
+            * `completed` - Completed
+          x-spec-enum-id: ef0e3523b506c807
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        cancelled_by:
+          type: string
+          readOnly: true
+          nullable: true
+        member:
+          allOf:
+          - $ref: '#/components/schemas/HKUMember'
+          readOnly: true
+        accommodation:
+          type: integer
+        rating:
+          allOf:
+          - $ref: '#/components/schemas/Rating'
+          readOnly: true
+      required:
+      - accommodation
+      - cancelled_by
+      - end_date
+      - id
+      - member
+      - rating
+      - start_date
+    ReservationRequest:
+      type: object
+      description: |-
+        Serializer for the Reservation model.
+
+        Handles serialization and deserialization of Reservation objects.
+
+        Fields:
+            id (int): Unique identifier
+            status (str): Status of the reservation
+            start_date (date): Start date of the reservation
+            end_date (date): End date of the reservation
+            cancelled_by (str): Who cancelled the reservation (if applicable)
+            member (HKUMemberSerializer): The HKU member making the reservation
+            accommodation (AccommodationSerializer): The accommodation being reserved
+            rating (RatingSerializer): Associated rating (if any)
+      properties:
+        status:
+          enum:
+          - pending
+          - confirmed
+          - cancelled
+          - completed
+          type: string
+          description: |-
+            * `pending` - Pending
+            * `confirmed` - Confirmed
+            * `cancelled` - Cancelled
+            * `completed` - Completed
+          x-spec-enum-id: ef0e3523b506c807
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        member_id:
+          type: string
+          minLength: 1
+          writeOnly: true
+        accommodation:
+          type: integer
+      required:
+      - accommodation
+      - end_date
+      - member_id
+      - start_date
+    ReserveAccommodationRequest:
+      type: object
+      description: |-
+        Serializer for reserving an accommodation.
+
+        Fields:
+            accommodation_id (int): ID of the accommodation to reserve
+            start_date (date): Start date of the reservation
+            end_date (date): End date of the reservation
+      properties:
+        accommodation_id:
+          type: integer
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+      required:
+      - accommodation_id
+      - end_date
+      - start_date
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+tags:
+- name: accommodations
+  description: Operations related to student accommodations
+- name: cedars-specialists
+  description: Operations related to CEDARS specialists
+- name: hku-members
+  description: Operations related to HKU members
+- name: property-owners
+  description: Operations related to managing property owners
+- name: ratings
+  description: Operations for managing ratings associated with accommodations
+- name: reservations
+  description: Operations for managing reservations
