@@ -10,9 +10,9 @@ info:
 
     This API implements role-based access control through query parameters. For most endpoints, you must include a `role` query parameter with one of the following formats:
 
-    - `cedars_specialist`: For CEDARS staff members (ID optional for some general actions like listing all owners/members/specialists).
-    - `cedars_specialist:<id>`: For CEDARS staff members performing actions requiring their specific ID (e.g., retrieving managed accommodations).
-    - `hku_member:<uid>`: For HKU students and staff (UID is generally required).
+    - `specialist`: For staff members (ID optional for some general actions like listing owners/members/specialists belong to their school).
+    - `specialist:<id>`: For staff members performing actions requiring their specific ID (e.g., retrieving managed accommodations).
+    - `member:<uid>`: For students and staff (UID is generally required).
 
     ### Required Role Parameter
 
@@ -36,40 +36,57 @@ info:
 
     ### Permission Rules Summary:
 
-    1.  **Property Owners (`/property-owners/`)**: Only CEDARS Specialists (ID optional) can perform List, Create, Retrieve, Update, Delete.
+    1.  **Property Owners (`/property-owners/`)**: 
+        - List: Authorized Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`)
+        - Create: Any Specialists (`hku_specialist[:id]/ust_specialist[:id]/cu_specialist[:id]`)
+        - Retrieve: Authorized Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`)
+        - Update: Authorized Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`)
+        - Delete: Only can delet their permision unless there is only one permision, Authorized Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`)
     2.  **Accommodations (`/accommodations/`)**:
-        - List/Search: Any HKU Member (`hku_member:uid`) or CEDARS Specialist (`cedars_specialist[:id]`).
-        - Retrieve: Any HKU Member (`hku_member:uid`) or CEDARS Specialist (`cedars_specialist[:id]`).
-        - Create/Update/Delete: Only CEDARS Specialists (`cedars_specialist[:id]`).
-        - `/search/` endpoint available for filtering.
-        - *Note: `/accommodations/{id}/reservations/` endpoint is currently not implemented/exposed.*
+        - List/Search: Authorized Member (`hku_member:uid`/`ust_member:uid`/`cu_member`) or Authorized Specialist (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`).
+        - Retrieve: Authorized Member (`hku_member:uid`/`ust_member:uid`/`cu_member`) or Authorized Specialist (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`).
+        - Create: Any Specialists (`hku_specialist[:id]/ust_specialist[:id]/cu_specialist[:id]`)
+        - Update:  Authorized Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`)
+        - Delete: Only can delet their permision unless there is only one permision, Authorized Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`)
+        - """`/search/` endpoint available for filtering.
+        - """*Note: `/accommodations/{id}/reservations/` endpoint is currently not implemented/exposed.*
     3.  **HKU Members (`/hku-members/`)**:
-        - List/Create/Delete: Only CEDARS Specialists (`cedars_specialist[:id]`).
-        - Retrieve/Update: Any CEDARS Specialist (`cedars_specialist[:id]`) OR the specific HKU Member themselves (`hku_member:<uid>`).
-        - List Reservations (`/hku-members/{uid}/reservations/`): Any CEDARS Specialist (`cedars_specialist[:id]`) OR the specific HKU Member themselves (`hku_member:<uid>`).
-    4.  **CEDARS Specialists (`/cedars-specialists/`)**: Only CEDARS Specialists (`cedars_specialist[:id]`) can perform List, Create, Retrieve, Update, Delete (including managing other specialists).
+        - List/Create/Delete: Only HKU Specialists (`hku_specialist[:id]`).
+        - Retrieve/Update: HKU Specialists (`hku_specialist[:id]`) OR the specific HKU Member themselves (`hku_member:<uid>`).
+        - """List Reservations (`/hku-members/{uid}/reservations/`): Any HKU Specialists (`hku_specialist[:id]`) OR the specific HKU Member themselves (`hku_member:<uid>`).
+    4.  **HKU Specialists (`/hku-specialists/`)**: Only HKU Specialists (`hku_specialist[:id]`) can perform List, Create, Retrieve, Update, Delete (including managing other specialists).
+    5.  **UST Members (`/ust-members/`)**:
+        - List/Create/Delete: Only UST Specialists (`ust_specialist[:id]`).
+        - Retrieve/Update: UST Specialists (`ust_specialist[:id]`) OR the specific UST Member themselves (`ust_member:<uid>`).
+        - """List Reservations (`/ust-members/{uid}/reservations/`): Any UST Specialists (`ust_specialist[:id]`) OR the specific UST Member themselves (`ust_member:<uid>`).
+    6.  **UST Specialists (`/ust-specialists/`)**: Only UST Specialists (`ust_specialist[:id]`) can perform List, Create, Retrieve, Update, Delete (including managing other specialists).
+    7.  **CU Members (`/cu-members/`)**:
+        - List/Create/Delete: Only CU Specialists (`cu_specialist[:id]`).
+        - Retrieve/Update: CU Specialists (`cu_specialist[:id]`) OR the specific CU Member themselves (`cu_member:<uid>`).
+        - """List Reservations (`/cu-members/{uid}/reservations/`): Any CU Specialists (`cu_specialist[:id]`) OR the specific CU Member themselves (`cu_member:<uid>`).
+    8.  **CU Specialists (`/cu-specialists/`)**: Only CU Specialists (`cu_specialist[:id]`) can perform List, Create, Retrieve, Update, Delete (including managing other specialists).
         - List Managed Accommodations (`/cedars-specialists/{id}/managed_accommodations/`): Only the specific CEDARS Specialist (`cedars_specialist:<id>`).
-    5.  **Reservations (`/reservations/`, `/reservations/create/`, `/reservations/{id}/cancel/`)**:
-        - List (`GET /reservations/`): Only CEDARS Specialists (`cedars_specialist[:id]`) - manual check implemented. HKU Members use `/hku-members/{uid}/reservations/`.
-        - Create (`POST /reservations/create/`): Any HKU Member (`hku_member:uid`, for self) OR any CEDARS Specialist (`cedars_specialist[:id]`, requires `member_id` in request body) - manual check implemented.
-        - Retrieve (`GET /reservations/{id}/`): Any CEDARS Specialist (`cedars_specialist[:id]`) OR the HKU Member (`hku_member:uid`) who owns the reservation.
-        - Cancel (`POST /reservations/{id}/cancel/`): Any CEDARS Specialist (`cedars_specialist[:id]`) OR the HKU Member (`hku_member:uid`) who owns the reservation - manual check implemented.
-        - Update (`PUT /reservations/{id}/`): Only CEDARS Specialists (`cedars_specialist[:id]`) - manual check implemented.
+    9.  **"""Reservations (`/reservations/`, `/reservations/create/`, `/reservations/{id}/cancel/`)**:
+        - List (`GET /reservations/`): Only Authorized Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`) - manual check implemented. Members use `/hku-members/{uid}/reservations/`,`/ust-members/{uid}/reservations/`,`/cu-members/{uid}/reservations/`.
+        - "Based on member can only search for accommodations that they can reserve" -->Create (`POST /reservations/create/`): Any Member (`hku_member:uid`/`ust_member:uid`/`cu_member`, for self) OR any Specialist (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`, requires `member_id` in request body) - manual check implemented.
+        - Retrieve (`GET /reservations/{id}/`): Specialist can only check  for the reservation made by their student (`*specialist[:id]`) OR the Member (`*member:uid`) who owns the reservation.
+        - "Based on speaialist can only retrieve reservation made by their student "Cancel (`POST /reservations/{id}/cancel/`): Any Specialist (`*_specialist[:id]`) OR the Member (`*_member:uid`) who owns the reservation - manual check implemented.
+        - Update (`PUT /reservations/{id}/`): Only Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`) - manual check implemented.
         - Partial Update (`PATCH /reservations/{id}/`): **Disabled.** Use PUT for full updates.
-        - Delete (`DELETE /reservations/{id}/`): Only CEDARS Specialists (`cedars_specialist[:id]`).
-    6.  **Ratings (`/ratings/`, `/ratings/create/`)**:
-        - List (`GET /ratings/`): Any CEDARS Specialist (`cedars_specialist[:id]`) (can list all); HKU Members (`hku_member:uid`) can list their own (filtered).
-        - Create (`POST /ratings/create/`): Only HKU Members (`hku_member:uid`) for their own completed reservations - manual check implemented.
-        - Retrieve (`GET /ratings/{id}/`): Any CEDARS Specialist (`cedars_specialist[:id]`) OR the HKU Member (`hku_member:uid`) who owns the rating's reservation.
-        - Update (`PUT /ratings/{id}/`): Only CEDARS Specialists (`cedars_specialist[:id]`) - manual check implemented.
-        - Delete (`DELETE /ratings/{id}/`): Only CEDARS Specialists (`cedars_specialist[:id]`).
+        - Delete (`DELETE /reservations/{id}/`): Only Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`).
+    10.  **Ratings (`/ratings/`, `/ratings/create/`)**:
+        - List (`GET /ratings/`): Any Only Specialists (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`) (can list all); Members (`hku_member:uid`/`ust_member:uid`/`cu_member`).
+        - Create (`POST /ratings/create/`): Only Members (`hku_member:uid`/`ust_member:uid`/`cu_member`) for their own completed reservations - manual check implemented.
+        - Retrieve (`GET /ratings/{id}/`): Any Specialist (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`) OR the Member (`hku_member:uid`/`ust_member:uid`/`cu_member`) "I thought student can retrieve?" who owns the rating's reservation.
+        - Update (`PUT /ratings/{id}/`): Onnly Specialists can update the rating created by their own student (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`) - manual check implemented.
+        - Delete (`DELETE /ratings/{id}/`): Only Specialists can delete the rating created by their own student (`hku_specialist[:id]`/`ust_specialist[:id]`/`cu_specialist[:id]`).
 
     If you attempt to access an endpoint without the required role or permission, you should receive a 403 Forbidden or 400 Bad Request error with an appropriate error message.
 
     ## Features
 
-    - CEDARS Specialists can manage accommodations, property owners, and handle reservations
-    - HKU members can search accommodations, make reservations, and rate their stays
+    - Specialists can manage accommodations, property owners, and handle reservations
+    - Members can search accommodations, make reservations that manage by their school, also rate their stays
     - Property owners are managed entities in the system, not users with direct API access
 paths:
   /accommodations/:
