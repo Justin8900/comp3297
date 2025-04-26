@@ -1,6 +1,12 @@
 from rest_framework import serializers
 from decimal import Decimal
-from .models import PropertyOwner, Accommodation, HKUMember, CEDARSSpecialist, Reservation, Rating
+from .models import *
+
+#Universal serializer for all models
+class UniversitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = University
+        fields = ['code']
 
 # Search parameters serializer
 class AccommodationSearchSerializer(serializers.Serializer):
@@ -51,6 +57,34 @@ class HKUMemberSerializer(serializers.ModelSerializer):
         model = HKUMember
         fields = ['uid', 'name']
 
+class CUHKMemberSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the CUHKMember model.
+    
+    Handles serialization and deserialization of HKU member objects.
+    
+    Fields:
+        uid (str): Unique identifier (primary key)
+        name (str): Name of the HKU member
+    """
+    class Meta:
+        model = CUHKMember
+        fields = ['uid', 'name']
+
+class HKUSTMemberSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the HKUSTMember model.
+    
+    Handles serialization and deserialization of HKU member objects.
+    
+    Fields:
+        uid (str): Unique identifier (primary key)
+        name (str): Name of the HKU member
+    """
+    class Meta:
+        model = HKUSTMember
+        fields = ['uid', 'name']
+
 class CEDARSSpecialistSerializer(serializers.ModelSerializer):
     """
     Serializer for the CEDARSSpecialist model.
@@ -65,6 +99,33 @@ class CEDARSSpecialistSerializer(serializers.ModelSerializer):
         model = CEDARSSpecialist
         fields = ['id', 'name']
 
+class HKUSTSpecialistSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the HKUSTSpecialist model.
+    
+    Handles serialization and deserialization of CEDARS specialist objects.
+    
+    Fields:
+        id (int): Unique identifier
+        name (str): Name of the CEDARS specialist
+    """
+    class Meta:
+        model = HKUSTSpecialist
+        fields = ['id', 'name']
+
+class CUHKSpecialistSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the CUHKSpecialist model.
+    
+    Handles serialization and deserialization of CEDARS specialist objects.
+    
+    Fields:
+        id (int): Unique identifier
+        name (str): Name of the CEDARS specialist
+    """
+    class Meta:
+        model = CUHKSpecialist
+        fields = ['id', 'name']
 # Forward declaration for nested serializers
 class ReservationSerializer(serializers.ModelSerializer):
     pass

@@ -8,7 +8,27 @@ from django.db.models.signals import post_save
 from unihaven.utils.notifications import send_specialist_notification
 
 # Create your models here.
+class University(models.Model):
+    """
+    Model representing a university in the system.
+    
+    Attributes:
+        code (char): the university code (e.g., HKU, CUHK, HKUST)
+    """
+    HKU = 'HKU'
+    CUHK = 'CU'
+    HKUST = 'HKUST'
 
+    UNIVERSITY_CHOICES = [
+        (HKU, 'University of Hong Kong'),
+        (CUHK, 'Chinese University of Hong Kong'),
+        (HKUST, 'Hong Kong University of Science and Technology'),
+    ]
+    code = models.CharField(max_length=10, choices=UNIVERSITY_CHOICES, unique=True)
+
+    def __str__(self):
+        return self.name
+    
 class PropertyOwner(models.Model):
     """
     Model representing a property owner in the system.
@@ -32,6 +52,96 @@ class PropertyOwner(models.Model):
         return self.name
 
 class CEDARSSpecialist(models.Model):
+    """
+    Model representing a CEDARS (Centre of Development and Resources for Students) specialist.
+    
+    Attributes:
+        user (User): The Django User associated with this CEDARS specialist
+        name (str): Name of the CEDARS specialist
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
+    name = models.CharField(max_length=255)
+    def __str__(self):
+        """
+        String representation of the CEDARSSpecialist.
+        
+        Returns:
+            str: The name of the CEDARS specialist
+        """
+        return self.name
+    
+    def addAccommodation(self, accommodation_data):
+        """
+        Add a new accommodation to the system.
+        
+        Args:
+            accommodation_data (dict): Data for creating the new accommodation
+            
+        Returns:
+            Accommodation: The newly created accommodation
+        """
+        accommodation = Accommodation.objects.create(**accommodation_data)
+        return accommodation
+    
+    def updateAccommodation(self, accommodation_id, updated_data):
+        """
+        Update an existing accommodation.
+        
+        Args:
+            accommodation_id (int): ID of the accommodation to update
+            updated_data (dict): New data for the accommodation
+            
+        Returns:
+            Accommodation: The updated accommodation
+        """
+        accommodation = Accommodation.objects.get(id=accommodation_id)
+        for key, value in updated_data.items():
+            setattr(accommodation, key, value)
+        accommodation.save()
+        return accommodation
+    
+    def cancelReservation(self, reservation_id):
+        """
+        Cancel a reservation.
+        
+        Args:
+            reservation_id (str): ID of the reservation to cancel
+            
+        Returns:
+            Reservation: The cancelled reservation
+        """
+        reservation = Reservation.objects.get(id=reservation_id)
+        old_status = reservation.status
+        reservation.status = 'cancelled'
+        reservation.cancelled_by = 'specialist'
+        reservation.save()
+        
+        # Send update notification
+        from unihaven.utils.notifications import send_reservation_update
+        send_reservation_update(reservation, old_status)
+        
+        return reservation
+    
+    def viewReservations(self):
+        """
+        View all reservations in the system.
+        
+        Returns:
+            QuerySet: All reservations
+        """
+        return Reservation.objects.all()
+    
+    def receiveNotifications(self):
+        """
+        Receive notifications about system events.
+        
+        Returns:
+            list: List of notifications
+        """
+        # Implementation would depend on notification system
+        return []
+
+class CUHKSpecialist(models.Model):
     """
     Model representing a CEDARS (Centre of Development and Resources for Students) specialist.
     
@@ -122,6 +232,97 @@ class CEDARSSpecialist(models.Model):
         # Implementation would depend on notification system
         return []
 
+class HKUSTSpecialist(models.Model):
+    """
+    Model representing a CEDARS (Centre of Development and Resources for Students) specialist.
+    
+    Attributes:
+        user (User): The Django User associated with this CEDARS specialist
+        name (str): Name of the CEDARS specialist
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
+    name = models.CharField(max_length=255)
+
+    def __str__(self):
+        """
+        String representation of the CEDARSSpecialist.
+        
+        Returns:
+            str: The name of the CEDARS specialist
+        """
+        return self.name
+    
+    def addAccommodation(self, accommodation_data):
+        """
+        Add a new accommodation to the system.
+        
+        Args:
+            accommodation_data (dict): Data for creating the new accommodation
+            
+        Returns:
+            Accommodation: The newly created accommodation
+        """
+        accommodation = Accommodation.objects.create(**accommodation_data)
+        return accommodation
+    
+    def updateAccommodation(self, accommodation_id, updated_data):
+        """
+        Update an existing accommodation.
+        
+        Args:
+            accommodation_id (int): ID of the accommodation to update
+            updated_data (dict): New data for the accommodation
+            
+        Returns:
+            Accommodation: The updated accommodation
+        """
+        accommodation = Accommodation.objects.get(id=accommodation_id)
+        for key, value in updated_data.items():
+            setattr(accommodation, key, value)
+        accommodation.save()
+        return accommodation
+    
+    def cancelReservation(self, reservation_id):
+        """
+        Cancel a reservation.
+        
+        Args:
+            reservation_id (str): ID of the reservation to cancel
+            
+        Returns:
+            Reservation: The cancelled reservation
+        """
+        reservation = Reservation.objects.get(id=reservation_id)
+        old_status = reservation.status
+        reservation.status = 'cancelled'
+        reservation.cancelled_by = 'specialist'
+        reservation.save()
+        
+        # Send update notification
+        from unihaven.utils.notifications import send_reservation_update
+        send_reservation_update(reservation, old_status)
+        
+        return reservation
+    
+    def viewReservations(self):
+        """
+        View all reservations in the system.
+        
+        Returns:
+            QuerySet: All reservations
+        """
+        return Reservation.objects.all()
+    
+    def receiveNotifications(self):
+        """
+        Receive notifications about system events.
+        
+        Returns:
+            list: List of notifications
+        """
+        # Implementation would depend on notification system
+        return []
+    
 class Accommodation(models.Model):
     """
     Model representing an accommodation listing in the system.
@@ -138,7 +339,7 @@ class Accommodation(models.Model):
         bedrooms (int): Number of bedrooms
         daily_price (Decimal): Price per day
         owner (PropertyOwner): Foreign key to the property owner
-        specialist (CEDARSSpecialist): Foreign key to the managing specialist
+        available_university: Foreign key to the avalable university.
     """
     TYPE_CHOICES = [
         ('apartment', 'Apartment'),
@@ -158,8 +359,9 @@ class Accommodation(models.Model):
     bedrooms = models.IntegerField()
     daily_price = models.DecimalField(max_digits=10, decimal_places=2)
     owner = models.ForeignKey(PropertyOwner, on_delete=models.CASCADE, related_name="accommodations")
-    specialist = models.ForeignKey(CEDARSSpecialist, on_delete=models.SET_NULL, null=True, related_name="managed_accommodations")
-
+    # specialist = models.ForeignKey(CEDARSSpecialist, on_delete=models.SET_NULL, null=True, related_name="managed_accommodations")
+    available_university = models.ForeignKey(University, on_delete=models.CASCADE, related_name="accommodations", blank=True, null=True)
+    
     def __str__(self):
         """
         String representation of the Accommodation.
@@ -212,6 +414,240 @@ class Accommodation(models.Model):
         """
         return Rating.objects.filter(reservation__accommodation=self).count()
 
+class CUHKMember(models.Model):
+    """
+    Model representing a member of CUHK.
+    
+    Attributes:
+        user (User): The Django User associated with this HKU member
+        uid (str): Unique identifier for the HKU member (primary key)
+        name (str): Name of the HKU member
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
+    uid = models.CharField(max_length=255, primary_key=True)
+    name = models.CharField(max_length=255)
+
+    def __str__(self):
+        """
+        String representation of the HKUMember.
+        
+        Returns:
+            str: The name of the HKU member
+        """
+        return self.name
+    
+    def searchAccommodation(self, **filters):
+        """
+        Search for accommodations based on given filters.
+        
+        Args:
+            **filters: Filters to apply to the search
+            
+        Returns:
+            QuerySet: Filtered accommodations
+        """
+        return Accommodation.objects.filter(**filters)
+    
+    def reserveAccommodation(self, accommodation_id, start_date, end_date):
+        """
+        Reserve an accommodation.
+        
+        Args:
+            accommodation_id (int): ID of the accommodation to reserve
+            start_date (Date): Start date of the reservation
+            end_date (Date): End date of the reservation
+            
+        Returns:
+            Reservation: The new reservation
+        """
+        accommodation = Accommodation.objects.get(id=accommodation_id)
+        reservation = Reservation.objects.create(
+            member=self,
+            accommodation=accommodation,
+            start_date=start_date,
+            end_date=end_date,
+            status='pending'
+        )
+        
+        # Send confirmation notification
+        from unihaven.utils.notifications import send_reservation_confirmation
+        send_reservation_confirmation(reservation)
+        
+        return reservation
+    
+    def cancelReservation(self, reservation_id):
+        """
+        Cancel a reservation.
+        
+        Args:
+            reservation_id (str): ID of the reservation to cancel
+            
+        Returns:
+            Reservation: The cancelled reservation
+        """
+        reservation = Reservation.objects.get(id=reservation_id, member=self)
+        old_status = reservation.status
+        reservation.status = 'cancelled'
+        reservation.cancelled_by = 'member'
+        reservation.save()
+        
+        # Send update notification
+        from unihaven.utils.notifications import send_reservation_update
+        send_reservation_update(reservation, old_status)
+        
+        return reservation
+    
+    def rateAccommodation(self, reservation_id, score, comment=None):
+        """
+        Rate an accommodation based on a reservation.
+        
+        Args:
+            reservation_id (str): ID of the reservation for the rating
+            score (int): Rating score between 0 and 5
+            comment (str, optional): Optional comment for the rating
+            
+        Returns:
+            Rating: The new rating
+        """
+        reservation = Reservation.objects.get(id=reservation_id, member=self, status='completed')
+        rating = Rating.objects.create(
+            reservation=reservation,
+            score=score,
+            comment=comment
+        )
+        return rating
+    
+    def get_active_reservations_count(self):
+        """
+        Get the count of active reservations for this member.
+        
+        Active reservations are those with status 'pending' or 'confirmed'.
+        
+        Returns:
+            int: Number of active reservations
+        """
+        return Reservation.objects.filter(
+            member=self,
+            status__in=['pending', 'confirmed']
+        ).count()
+
+class HKUSTMember(models.Model):
+    """
+    Model representing a member of the HKUST.
+    
+    Attributes:
+        user (User): The Django User associated with this HKU member
+        uid (str): Unique identifier for the HKU member (primary key)
+        name (str): Name of the HKU member
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
+    uid = models.CharField(max_length=255, primary_key=True)
+    name = models.CharField(max_length=255)
+
+    def __str__(self):
+        """
+        String representation of the HKUMember.
+        
+        Returns:
+            str: The name of the HKU member
+        """
+        return self.name
+    
+    def searchAccommodation(self, **filters):
+        """
+        Search for accommodations based on given filters.
+        
+        Args:
+            **filters: Filters to apply to the search
+            
+        Returns:
+            QuerySet: Filtered accommodations
+        """
+        return Accommodation.objects.filter(**filters)
+    
+    def reserveAccommodation(self, accommodation_id, start_date, end_date):
+        """
+        Reserve an accommodation.
+        
+        Args:
+            accommodation_id (int): ID of the accommodation to reserve
+            start_date (Date): Start date of the reservation
+            end_date (Date): End date of the reservation
+            
+        Returns:
+            Reservation: The new reservation
+        """
+        accommodation = Accommodation.objects.get(id=accommodation_id)
+        reservation = Reservation.objects.create(
+            member=self,
+            accommodation=accommodation,
+            start_date=start_date,
+            end_date=end_date,
+            status='pending'
+        )
+        
+        # Send confirmation notification
+        from unihaven.utils.notifications import send_reservation_confirmation
+        send_reservation_confirmation(reservation)
+        
+        return reservation
+    
+    def cancelReservation(self, reservation_id):
+        """
+        Cancel a reservation.
+        
+        Args:
+            reservation_id (str): ID of the reservation to cancel
+            
+        Returns:
+            Reservation: The cancelled reservation
+        """
+        reservation = Reservation.objects.get(id=reservation_id, member=self)
+        old_status = reservation.status
+        reservation.status = 'cancelled'
+        reservation.cancelled_by = 'member'
+        reservation.save()
+        
+        # Send update notification
+        from unihaven.utils.notifications import send_reservation_update
+        send_reservation_update(reservation, old_status)
+        
+        return reservation
+    
+    def rateAccommodation(self, reservation_id, score, comment=None):
+        """
+        Rate an accommodation based on a reservation.
+        
+        Args:
+            reservation_id (str): ID of the reservation for the rating
+            score (int): Rating score between 0 and 5
+            comment (str, optional): Optional comment for the rating
+            
+        Returns:
+            Rating: The new rating
+        """
+        reservation = Reservation.objects.get(id=reservation_id, member=self, status='completed')
+        rating = Rating.objects.create(
+            reservation=reservation,
+            score=score,
+            comment=comment
+        )
+        return rating
+    
+    def get_active_reservations_count(self):
+        """
+        Get the count of active reservations for this member.
+        
+        Active reservations are those with status 'pending' or 'confirmed'.
+        
+        Returns:
+            int: Number of active reservations
+        """
+        return Reservation.objects.filter(
+            member=self,
+            status__in=['pending', 'confirmed']
+        ).count()
+    
 class HKUMember(models.Model):
     """
     Model representing a member of the Hong Kong University.
@@ -328,7 +764,7 @@ class HKUMember(models.Model):
             member=self,
             status__in=['pending', 'confirmed']
         ).count()
-        
+
 logger = logging.getLogger('django')
 class Reservation(models.Model):
     """
@@ -342,6 +778,7 @@ class Reservation(models.Model):
         cancelled_by (str): Who cancelled the reservation (if applicable)
         member (HKUMember): Foreign key to the HKU member making the reservation
         accommodation (Accommodation): Foreign key to the accommodation being reserved
+        university (University): Foreign key to the university associated with the accommodation
     """
     STATUS_CHOICES = [
         ('pending', 'Pending'),
@@ -358,7 +795,7 @@ class Reservation(models.Model):
     cancelled_by = models.CharField(max_length=50, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
+    university = models.ForeignKey(University, on_delete=models.CASCADE, related_name="reservations",blank=True, null=True)
     
     def __str__(self):
         """
