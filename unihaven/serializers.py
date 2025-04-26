@@ -1,438 +1,243 @@
 from rest_framework import serializers
 from decimal import Decimal
-from .models import *
+from .models import (
+    University, PropertyOwner, Accommodation, Member, Specialist,
+    Reservation, Rating
+)
+import logging
 
-#Universal serializer for all models
+logger = logging.getLogger(__name__)
+
+# --- Basic Serializers ---
+
 class UniversitySerializer(serializers.ModelSerializer):
+    """Serializer for University details."""
     class Meta:
         model = University
-        fields = ['code']
-
-# Search parameters serializer
-class AccommodationSearchSerializer(serializers.Serializer):
-    """
-    Serializer for accommodation search parameters.
-    
-    Defines the query parameters that can be used to filter accommodations in the search endpoint.
-    All parameters are optional, allowing for flexible search criteria.
-    """
-    type = serializers.CharField(required=False, help_text="Filter by accommodation type (apartment, house, villa, studio, hostel)")
-    min_beds = serializers.IntegerField(required=False, help_text="Filter by minimum number of beds")
-    beds = serializers.IntegerField(required=False, help_text="Filter by exact number of beds")
-    min_bedrooms = serializers.IntegerField(required=False, help_text="Filter by minimum number of bedrooms")
-    bedrooms = serializers.IntegerField(required=False, help_text="Filter by exact number of bedrooms")
-    min_rating = serializers.FloatField(required=False, help_text="Filter by minimum rating (0-5)")
-    rating = serializers.FloatField(required=False, help_text="Filter by exact rating (0-5)")
-    max_price = serializers.FloatField(required=False, help_text="Filter by maximum price")
-    available_from = serializers.DateField(required=False, help_text="Filter by availability start date (YYYY-MM-DD)")
-    available_until = serializers.DateField(required=False, help_text="Filter by availability end date (YYYY-MM-DD)")
-    distance_from = serializers.CharField(required=False, help_text="Calculate distances from specified HKU location or address. Valid location names: Main Campus, Sassoon Road Campus, Swire Institute of Marine Science, Kadoorie Centre, Faculty of Dentistry")
+        # Include name for better representation
+        fields = ['code', 'name']
+        read_only_fields = ['code', 'name'] # Usually universities aren't created/modified via API
 
 class PropertyOwnerSerializer(serializers.ModelSerializer):
-    """
-    Serializer for the PropertyOwner model.
-    
-    Handles serialization and deserialization of PropertyOwner objects.
-    
-    Fields:
-        id (int): Unique identifier
-        name (str): Name of the property owner
-        phone_no (str): Phone number of the property owner
-    """
+    """Serializer for the PropertyOwner model."""
     class Meta:
         model = PropertyOwner
         fields = ['id', 'name', 'phone_no']
+        # Consider if owner endpoint allows creation/update or is managed elsewhere
 
-class HKUMemberSerializer(serializers.ModelSerializer):
-    """
-    Serializer for the HKUMember model.
-    
-    Handles serialization and deserialization of HKU member objects.
-    
-    Fields:
-        uid (str): Unique identifier (primary key)
-        name (str): Name of the HKU member
-    """
-    class Meta:
-        model = HKUMember
-        fields = ['uid', 'name']
+# --- Generalized Member & Specialist Serializers ---
 
-class CUHKMemberSerializer(serializers.ModelSerializer):
-    """
-    Serializer for the CUHKMember model.
+class MemberSerializer(serializers.ModelSerializer):
+    """Serializer for the concrete Member model."""
+    university = serializers.SlugRelatedField(slug_field='code', read_only=True)
     
-    Handles serialization and deserialization of HKU member objects.
-    
-    Fields:
-        uid (str): Unique identifier (primary key)
-        name (str): Name of the HKU member
-    """
     class Meta:
-        model = CUHKMember
-        fields = ['uid', 'name']
+        model = Member # Point to the concrete Member model
+        fields = ['uid', 'name', 'university']
+        # Allow UID to be provided during creation
+        read_only_fields = ['university'] # University is set by perform_create
 
-class HKUSTMemberSerializer(serializers.ModelSerializer):
-    """
-    Serializer for the HKUSTMember model.
-    
-    Handles serialization and deserialization of HKU member objects.
-    
-    Fields:
-        uid (str): Unique identifier (primary key)
-        name (str): Name of the HKU member
-    """
-    class Meta:
-        model = HKUSTMember
-        fields = ['uid', 'name']
+class SpecialistSerializer(serializers.ModelSerializer):
+    """Serializer for the unified Specialist model."""
+    university = serializers.SlugRelatedField(slug_field='code', read_only=True)
 
-class CEDARSSpecialistSerializer(serializers.ModelSerializer):
-    """
-    Serializer for the CEDARSSpecialist model.
-    
-    Handles serialization and deserialization of CEDARS specialist objects.
-    
-    Fields:
-        id (int): Unique identifier
-        name (str): Name of the CEDARS specialist
-    """
     class Meta:
-        model = CEDARSSpecialist
-        fields = ['id', 'name']
+        model = Specialist
+        fields = ['id', 'name', 'university']
+        # Modifications typically restricted to admin interface or specific logic
+        read_only_fields = ['id', 'university']
 
-class HKUSTSpecialistSerializer(serializers.ModelSerializer):
-    """
-    Serializer for the HKUSTSpecialist model.
-    
-    Handles serialization and deserialization of CEDARS specialist objects.
-    
-    Fields:
-        id (int): Unique identifier
-        name (str): Name of the CEDARS specialist
-    """
-    class Meta:
-        model = HKUSTSpecialist
-        fields = ['id', 'name']
 
-class CUHKSpecialistSerializer(serializers.ModelSerializer):
-    """
-    Serializer for the CUHKSpecialist model.
-    
-    Handles serialization and deserialization of CEDARS specialist objects.
-    
-    Fields:
-        id (int): Unique identifier
-        name (str): Name of the CEDARS specialist
-    """
-    class Meta:
-        model = CUHKSpecialist
-        fields = ['id', 'name']
-# Forward declaration for nested serializers
-class ReservationSerializer(serializers.ModelSerializer):
-    pass
-
-class RatingSerializer(serializers.ModelSerializer):
-    """
-    Serializer for the Rating model.
-    
-    Handles serialization and deserialization of Rating objects.
-    
-    Fields:
-        id (int): Unique identifier
-        score (int): Rating score (0-5)
-        date_rated (date): Date when the rating was submitted
-        comment (str): Optional comment for the rating
-        reservation (int): ID of the associated reservation
-    """
-    class Meta:
-        model = Rating
-        fields = ['id', 'score', 'date_rated', 'comment', 'reservation']
-        read_only_fields = ['date_rated']
+# --- Accommodation Serializer ---
 
 class AccommodationSerializer(serializers.ModelSerializer):
-    """
-    Serializer for the Accommodation model.
-    
-    Provides comprehensive serialization for accommodation listings with support for:
-    - Creating/updating accommodations
-    - Handling property owner relationships
-    - Validating dates and numeric fields
-    - Automatic geocoding of addresses
-    
-    Fields:
-        id (int): Unique identifier (read-only)
-        type (str): Type of accommodation
-        address (str): Physical address
-        latitude (float): Latitude coordinate (read-only, auto-populated)
-        longitude (float): Longitude coordinate (read-only, auto-populated)
-        geo_address (str): Geocoded address (read-only, auto-populated)
-        available_from (date): Start date of availability
-        available_until (date): End date of availability
-        beds (int): Number of beds (min: 0)
-        bedrooms (int): Number of bedrooms (min: 0)
-        daily_price (Decimal): Price per day (min: 0.01)
-        owner (PropertyOwnerSerializer): Nested serializer for owner details
-        owner_id (int): ID for selecting existing owner (write-only)
-        specialist (CEDARSSpecialistSerializer): Nested serializer for specialist details
-        specialist_id (int): ID for selecting existing specialist (write-only)
-        average_rating (float): Average rating based on associated ratings
-    """
+    """Serializer for the Accommodation model.
+    Handles M2M relationship with University and new address fields.
+    Owner association via owner_id."""
     owner = PropertyOwnerSerializer(read_only=True)
     owner_id = serializers.PrimaryKeyRelatedField(
         queryset=PropertyOwner.objects.all(),
         write_only=True,
         source='owner',
-        required=False,
-        allow_null=True,
-        label="Select existing owner (leave blank for new owner)"
+        required=True, # Assuming owner is always required
+        label="Existing Property Owner ID" # Corrected quotes
     )
-    
-    specialist = CEDARSSpecialistSerializer(read_only=True)
-    specialist_id = serializers.PrimaryKeyRelatedField(
-        queryset=CEDARSSpecialist.objects.all(),
-        write_only=True,
-        source='specialist',
-        required=False,
-        allow_null=True,
-        label="Select managing specialist"
+
+    # Handle M2M relationship with University
+    available_at_universities = serializers.SlugRelatedField(
+         queryset=University.objects.all(),
+         slug_field='code',
+         many=True,
+         label="Universities offering this accommodation (use codes like 'HKU', 'CU')" # Corrected quotes
     )
-    
-    # Fields for creating a new owner if owner_id is not provided
-    owner_name = serializers.CharField(
-        write_only=True, 
-        required=False,
-        label="New owner name (only if creating new owner)"
-    )
-    owner_phone = serializers.CharField(
-        write_only=True, 
-        required=False,
-        label="New owner phone number (only if creating new owner)"
-    )
-    
-    # Add validation for numeric fields
-    beds = serializers.IntegerField(min_value=0, label="Number of beds (must be 0 or greater)")
-    bedrooms = serializers.IntegerField(min_value=0, label="Number of bedrooms (must be 0 or greater)")
+
+    # Add new address fields
+    geo_address = serializers.CharField(read_only=True, required=False)
+    latitude = serializers.FloatField(read_only=True, required=False)
+    longitude = serializers.FloatField(read_only=True, required=False)
+
+    # Add average rating (read-only property from model)
     average_rating = serializers.FloatField(read_only=True)
+    rating_count = serializers.IntegerField(read_only=True)
+
+    # Validation for numeric fields
+    beds = serializers.IntegerField(min_value=0, label="Number of beds (must be 0 or greater)") # Corrected quotes
+    bedrooms = serializers.IntegerField(min_value=0, label="Number of bedrooms (must be 0 or greater)") # Corrected quotes
     daily_price = serializers.DecimalField(
         max_digits=10,
         decimal_places=2,
         min_value=Decimal('0.01'),
-        label="Daily price (positive amount)"
+        label="Daily price (positive amount)" # Corrected quotes
     )
-    
-    # Make geocoding fields read-only since they'll be auto-populated
-    latitude = serializers.FloatField(read_only=True)
-    longitude = serializers.FloatField(read_only=True)
-    geo_address = serializers.CharField(read_only=True)
-    
+
     class Meta:
         model = Accommodation
         fields = [
-            'id', 'type', 'address', 'latitude', 'longitude', 'geo_address',
-            'available_from', 'available_until', 'beds', 'bedrooms', 'average_rating',
-            'daily_price', 'owner', 'owner_id', 'owner_name', 'owner_phone',
-            'specialist', 'specialist_id'
+            'id', 'type',
+            # Address components
+            'address',
+            'room_number', 'flat_number', 'floor_number',
+            # Geocoding related
+            'latitude', 'longitude', 'geo_address',
+            # Availability & Specs
+            'available_from', 'available_until', 'beds', 'bedrooms',
+            'daily_price',
+            # Relationships
+            'owner', 'owner_id',
+            'available_at_universities',
+            # Read-only computed fields
+            'average_rating', 'rating_count'
         ]
-        read_only_fields = ['id']
-    
+        read_only_fields = ['id', 'latitude', 'longitude', 'geo_address', 'average_rating', 'rating_count']
+
+    def validate_available_at_universities(self, value):
+        """Ensure at least one university is selected."""
+        if not value:
+            raise serializers.ValidationError("At least one university must be selected.")
+        return value
+
     def validate(self, data):
-        """
-        Validate the accommodation data.
-        
-        Performs the following validations:
-        1. Checks that available_until date is after available_from date
-        2. Ensures either owner_id or both owner_name and owner_phone are provided
-        3. Creates a new owner if owner_name and owner_phone are provided without owner_id
-        
-        Args:
-            data (dict): The data to validate
-            
-        Returns:
-            dict: The validated data
-            
-        Raises:
-            ValidationError: If validation fails
-        """
-        # Validate that available_until is after available_from
-        if 'available_from' in data and 'available_until' in data:
-            if data['available_until'] <= data['available_from']:
-                raise serializers.ValidationError("Available until date must be after available from date")
-        
-        # Check that either owner_id or both owner_name and owner_phone are provided for creation
-        if self.instance is None:  # Only for creation
-            owner = data.get('owner')
-            owner_name = data.pop('owner_name', None) if 'owner_name' in data else None
-            owner_phone = data.pop('owner_phone', None) if 'owner_phone' in data else None
-            
-            if not owner and not (owner_name and owner_phone):
-                raise serializers.ValidationError("Either owner_id or both owner_name and owner_phone must be provided")
-            
-            # If owner_name and owner_phone are provided but no owner_id, create a new owner
-            if not owner and owner_name and owner_phone:
-                new_owner = PropertyOwner.objects.create(
-                    name=owner_name,
-                    phone_no=owner_phone
-                )
-                data['owner'] = new_owner
-        
+        """Validate dates: available_until must be after available_from."""
+        # logger.info(f"[Serializer Validate] Input data: {data}") # Log input data
+        start = data.get('available_from', getattr(self.instance, 'available_from', None))
+        end = data.get('available_until', getattr(self.instance, 'available_until', None))
+
+        if start and end and end < start:
+            raise serializers.ValidationError({"available_until": "End date must be after start date."})
+
+        # Log validated data BEFORE returning from serializer validate
+        # logger.info(f"[Serializer Validate] Returning validated data: {data}") 
         return data
 
-# Complete the ReservationSerializer definition
-class ReservationSerializer(serializers.ModelSerializer):
-    """
-    Serializer for the Reservation model.
-    
-    Handles serialization and deserialization of Reservation objects.
-    
-    Fields:
-        id (int): Unique identifier
-        status (str): Status of the reservation
-        start_date (date): Start date of the reservation
-        end_date (date): End date of the reservation
-        cancelled_by (str): Who cancelled the reservation (if applicable)
-        member (HKUMemberSerializer): The HKU member making the reservation
-        accommodation (AccommodationSerializer): The accommodation being reserved
-        rating (RatingSerializer): Associated rating (if any)
-    """
-    member = HKUMemberSerializer(read_only=True)
-    member_id = serializers.PrimaryKeyRelatedField(
-        queryset=HKUMember.objects.all(),
-        write_only=True,
-        source='member'
+
+# --- Rating Serializer ---
+
+class RatingSerializer(serializers.ModelSerializer):
+    """Serializer for the Rating model.
+    Handles creation and display of ratings, linked to a reservation."""
+    # Display related info read-only
+    member_uid = serializers.CharField(source='reservation.member.uid', read_only=True)
+    accommodation_id = serializers.IntegerField(source='reservation.accommodation.id', read_only=True)
+    accommodation_details = serializers.CharField(source='reservation.accommodation.__str__', read_only=True) # Use __str__
+
+    # Use PrimaryKeyRelatedField for writing the reservation link
+    reservation = serializers.PrimaryKeyRelatedField(
+        queryset=Reservation.objects.all(), # Queryset for validation
+        write_only=True, # Only used for creating/linking the rating
+        label="Reservation ID being rated" # Corrected quotes
     )
-    accommodation = serializers.PrimaryKeyRelatedField(queryset=Accommodation.objects.all())
-    rating = RatingSerializer(read_only=True)
-    
+
+    class Meta:
+        model = Rating
+        fields = [
+            'id',
+            'reservation', # Write-only field for linking
+            'score', 'comment', 'date_rated',
+            # Read-only fields for context
+            'member_uid', 'accommodation_id', 'accommodation_details'
+            ]
+        read_only_fields = ['id', 'date_rated', 'member_uid', 'accommodation_id', 'accommodation_details']
+
+
+# --- Reservation Serializer ---
+
+class ReservationSerializer(serializers.ModelSerializer):
+    """Serializer for the Reservation model.
+    Handles creation by members (self) or specialists (for a member).
+    Handles display of reservations."""
+    # Read-only nested serializers for display
+    member = MemberSerializer(read_only=True)
+    # Use a simple representation for accommodation to avoid overly nested data
+    accommodation_details = serializers.CharField(source='accommodation.__str__', read_only=True) # Use __str__
+    university = serializers.SlugRelatedField(slug_field='code', read_only=True)
+    rating = RatingSerializer(read_only=True) # Display nested rating if it exists
+
+    # Write-only fields for creation
+    accommodation = serializers.PrimaryKeyRelatedField(
+        queryset=Accommodation.objects.all(), 
+        write_only=True
+    )
+    member_uid = serializers.CharField(
+         write_only=True, 
+         required=False, 
+         label="Member UID (Required if Specialist is creating reservation)" # Corrected quotes
+    )
+
     class Meta:
         model = Reservation
-        fields = ['id', 'status', 'start_date', 'end_date', 'cancelled_by', 
-                 'member', 'member_id', 'accommodation', 'rating']
-        read_only_fields = ['id', 'cancelled_by']
-    
+        fields = [
+            'id', 'status', 'start_date', 'end_date', 'cancelled_by', 
+            'university', 'member', 'accommodation_details', 'rating', 
+            'accommodation', 'member_uid' 
+        ]
+        # Make status read-only here; updates handled in view
+        read_only_fields = ['id', 'status', 'cancelled_by', 'university', 'member', 'accommodation_details', 'rating']
+        # Note: status might be updatable by specialists via PUT/PATCH actions in the view
+
     def validate(self, data):
-        """
-        Validate the reservation data.
-        
-        Performs the following validations:
-        1. Checks that end_date is after start_date
-        2. Checks if accommodation is available for the selected dates
-        
-        Args:
-            data (dict): The data to validate
-            
-        Returns:
-            dict: The validated data
-            
-        Raises:
-            ValidationError: If validation fails
-        """
-        if 'start_date' in data and 'end_date' in data:
-            if data['end_date'] <= data['start_date']:
-                raise serializers.ValidationError("End date must be after start date")
-            
-            # Check if accommodation is available for these dates
-            accommodation = data['accommodation']
-            if data['start_date'] < accommodation.available_from or data['end_date'] > accommodation.available_until:
-                raise serializers.ValidationError("Accommodation is not available for the selected dates")
-            
-            # Check for conflicting reservations
-            conflicting = Reservation.objects.filter(
+        """Validate dates and check for overlaps."""
+        # Get instance if performing an update
+        instance = getattr(self, 'instance', None)
+
+        start_date = data.get('start_date', getattr(instance, 'start_date', None))
+        end_date = data.get('end_date', getattr(instance, 'end_date', None))
+        accommodation = data.get('accommodation', getattr(instance, 'accommodation', None))
+
+        # 1. Validate Date Order
+        if start_date and end_date and end_date < start_date:
+            raise serializers.ValidationError({"end_date": "End date must be after start date."})
+
+        # 2. Check for Overlapping Reservations for the *specific* accommodation
+        if start_date and end_date and accommodation:
+            overlapping_reservations = Reservation.objects.filter(
                 accommodation=accommodation,
                 status__in=['pending', 'confirmed'],
-                start_date__lt=data['end_date'],
-                end_date__gt=data['start_date']
+                start_date__lt=end_date, # Starts before the new one ends
+                end_date__gt=start_date # Ends after the new one starts
             )
-            
-            # Exclude current reservation when updating
-            if self.instance:
-                conflicting = conflicting.exclude(id=self.instance.id)
-                
-            if conflicting.exists():
-                raise serializers.ValidationError("This accommodation is already reserved for the selected dates")
-            
-        return data 
+            # If updating, exclude the current reservation itself from the check
+            if instance:
+                overlapping_reservations = overlapping_reservations.exclude(pk=instance.pk)
 
-class ConfirmReservationSerializer(serializers.Serializer):
-    """
-    Serializer for confirming a reservation.
-    This is a simple serializer as confirming only requires the reservation ID 
-    which is already part of the URL.
-    """
-    pass 
+            if overlapping_reservations.exists():
+                raise serializers.ValidationError(
+                    "Accommodation is not available for the selected dates due to an existing reservation."
+                )
 
-class ReserveAccommodationSerializer(serializers.Serializer):
-    """
-    Serializer for reserving an accommodation.
-    
-    Fields:
-        accommodation_id (int): ID of the accommodation to reserve
-        start_date (date): Start date of the reservation
-        end_date (date): End date of the reservation
-    """
-    accommodation_id = serializers.IntegerField(required=True)
-    start_date = serializers.DateField(required=True)
-    end_date = serializers.DateField(required=True)
-    
-    def validate(self, data):
-        """
-        Validate the reservation data.
+        # Member UID validation is handled in the view's perform_create
         
-        Performs the following validations:
-        1. Checks that end_date is after start_date
-        
-        Args:
-            data (dict): The data to validate
-            
-        Returns:
-            dict: The validated data
-            
-        Raises:
-            ValidationError: If validation fails
-        """
-        if data['end_date'] <= data['start_date']:
-            raise serializers.ValidationError("End date must be after start date")
         return data
 
-class CancelReservationSerializer(serializers.Serializer):
-    """
-    Serializer for cancelling a reservation.
-    This is a simple serializer as cancelling only requires the reservation ID
-    which is already part of the URL.
-    """
-    pass
+# --- Utility Serializers ---
 
-class RateAccommodationSerializer(serializers.Serializer):
-    """
-    Serializer for rating an accommodation.
-    
-    Fields:
-        reservation_id (int): ID of the reservation to rate
-        score (int): Rating score (0-5)
-        comment (str): Optional comment for the rating
-    """
-    reservation_id = serializers.IntegerField(required=True)
-    score = serializers.IntegerField(min_value=0, max_value=5, required=True)
-    comment = serializers.CharField(required=False, allow_blank=True)
-
-class UpdateAccommodationSerializer(serializers.Serializer):
-    """
-    Serializer for updating an accommodation.
-    Used for partial updates to accommodation details.
-    
-    Fields are optional to allow partial updates.
-    """
-    type = serializers.CharField(required=False)
-    address = serializers.CharField(required=False)
-    available_from = serializers.DateField(required=False)
-    available_until = serializers.DateField(required=False)
-    beds = serializers.IntegerField(min_value=0, required=False)
-    bedrooms = serializers.IntegerField(min_value=0, required=False)
-    daily_price = serializers.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        min_value=Decimal('0.01'),
-        required=False
-    )
-    specialist_id = serializers.PrimaryKeyRelatedField(
-        queryset=CEDARSSpecialist.objects.all(),
-        required=False
-    ) 
+class AccommodationSearchSerializer(serializers.Serializer):
+    """Serializer for accommodation search parameters.
+    Needs review/update if search endpoint is reimplemented with new models/filters."""
+    type = serializers.CharField(required=False, help_text="Filter by accommodation type")
+    min_beds = serializers.IntegerField(required=False, help_text="Filter by minimum number of beds")
+    # ... (add/update other fields as needed)
+    max_price = serializers.FloatField(required=False, help_text="Filter by maximum price")
+    available_from = serializers.DateField(required=False, help_text="Filter by availability start date (YYYY-MM-DD)")
+    available_until = serializers.DateField(required=False, help_text="Filter by availability end date (YYYY-MM-DD)")
+    # distance_from might need adjustment based on geocoding implementation
+    # university_code = serializers.CharField(required=False) # Add filter by university? (Handled by view queryset now)

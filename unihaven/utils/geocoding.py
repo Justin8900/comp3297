@@ -19,6 +19,7 @@ Dependencies:
 import requests
 from urllib.parse import quote
 import logging
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -70,3 +71,39 @@ def geocode_address(address):
         logger.error(f"Failed to parse ALS response: {str(e)}")
         
     return None, None, None
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+    """Calculate the approximate distance between two points 
+    on the Earth using the Equirectangular approximation.
+
+    Args:
+        lat1 (float): Latitude of point 1 (degrees).
+        lon1 (float): Longitude of point 1 (degrees).
+        lat2 (float): Latitude of point 2 (degrees).
+        lon2 (float): Longitude of point 2 (degrees).
+
+    Returns:
+        float: Approximate distance in kilometers.
+    """
+    # Radius of Earth in kilometers
+    R = 6371
+    
+    # Convert degrees to radians
+    phi1 = math.radians(lat1)
+    lambda1 = math.radians(lon1)
+    phi2 = math.radians(lat2)
+    lambda2 = math.radians(lon2)
+    
+    # Calculate differences and mean latitude
+    d_lambda = lambda2 - lambda1
+    d_phi = phi2 - phi1
+    phi_mean = (phi1 + phi2) / 2
+    
+    # Calculate x and y using Equirectangular approximation
+    x = d_lambda * math.cos(phi_mean)
+    y = d_phi
+    
+    # Calculate distance
+    distance = R * math.sqrt(x**2 + y**2)
+    
+    return distance
