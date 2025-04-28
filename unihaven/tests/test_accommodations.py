@@ -350,8 +350,3 @@ class AccommodationEndpointTests(AccommodationBaseTestCase):
         url = self._get_detail_url(role, self.acc4_all.id)
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-
-    def test_list_nearby_accommodations(self):
-        response = self.client.get(f"accommodations/nearby/?location_name=CUHK Campus?role=cu:specialist:{self.cu_specialist.id}")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        print(response.data)

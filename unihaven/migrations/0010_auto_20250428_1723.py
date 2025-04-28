@@ -6,9 +6,20 @@ from django.db import migrations
 def add_university_locations(apps, schema_editor):
     University = apps.get_model('unihaven', 'University')
     UniversityLocation = apps.get_model('unihaven', 'UniversityLocation')
-    hku = University.objects.get(code='HKU')
-    cu = University.objects.get(code='CU')
-    hkust = University.objects.get(code='HKUST')
+
+    # Create Universities
+    hku, _ = University.objects.get_or_create(
+        code='HKU',
+        defaults={'name': 'The University of Hong Kong'}
+    )
+    cu, _ = University.objects.get_or_create(
+        code='CU',
+        defaults={'name': 'The Chinese University of Hong Kong'}
+    )
+    hkust, _ = University.objects.get_or_create(
+        code='HKUST',
+        defaults={'name': 'Hong Kong University of Science and Technology'}
+    )
 
     UniversityLocation.objects.create(university=hku, name='Main Campus', latitude=22.28405, longitude=114.13784)
     UniversityLocation.objects.create(university=hku, name='Sassoon Road Campus', latitude=22.2675, longitude=114.12881)
