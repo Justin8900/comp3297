@@ -150,6 +150,7 @@ class AccommodationBaseTestCase(APITestCase):
     @patch('unihaven.utils.geocoding.geocode_address')
     def setUpTestData(cls, mock_geocode):
         """Set up data for accommodation tests."""
+        University.objects.all().delete()
         mock_geocode.return_value = (1.0, 1.0, 'Mocked Geo Address for Base')
 
         # Create Universities
@@ -228,7 +229,12 @@ class AccommodationListPermissionsTests(AccommodationBaseTestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        results = response.data.get('results', [])
+        # Handle both paginated and non-paginated responses
+        if isinstance(response.data, dict) and 'results' in response.data:
+            results = response.data['results']
+        else:
+            results = response.data
+            
         result_ids = {item['id'] for item in results}
         # Should see acc1_hku, acc3_hku_cu, acc4_all
         self.assertIn(self.acc1_hku.id, result_ids)
@@ -244,7 +250,12 @@ class AccommodationListPermissionsTests(AccommodationBaseTestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        results = response.data.get('results', [])
+        # Handle both paginated and non-paginated responses
+        if isinstance(response.data, dict) and 'results' in response.data:
+            results = response.data['results']
+        else:
+            results = response.data
+            
         result_ids = {item['id'] for item in results}
         # Should see acc2_cu, acc3_hku_cu, acc4_all
         self.assertNotIn(self.acc1_hku.id, result_ids)
