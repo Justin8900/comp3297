@@ -6,7 +6,7 @@ from ..models import Accommodation, University, PropertyOwner, Specialist, Membe
 from unittest.mock import patch
 
 class AccommodationUpdateTests(APITestCase):
-
+    "Tests for partial update accomodation."
     @classmethod
     @patch('unihaven.utils.geocoding.geocode_address')
     def setUpTestData(cls, mock_geocode):
@@ -219,6 +219,7 @@ class AccommodationBaseTestCase(APITestCase):
         return f"{base_url}?role={role_str}"
 
 class AccommodationListPermissionsTests(AccommodationBaseTestCase):
+    "Tests for listing accommodations based on user roles."
 
     def test_member_can_view_own_uni_accommodations(self):
         """Verify HKU member can list accommodations available at HKU."""
@@ -259,7 +260,7 @@ class AccommodationListPermissionsTests(AccommodationBaseTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 class AccommodationDetailPermissionsTests(AccommodationBaseTestCase):
-
+    "Tests for retrieving accommodation details based on user roles."
     def test_member_can_view_own_uni_accommodation_detail(self):
         """Verify HKU member can view detail of an accommodation available at HKU."""
         role = f"hku:member:{self.hku_member.uid}"
@@ -299,3 +300,58 @@ class AccommodationDetailPermissionsTests(AccommodationBaseTestCase):
         url = reverse('accommodation-detail', kwargs={'pk': self.acc1_hku.id}) # No role
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+class AccommodationEndpointTests(AccommodationBaseTestCase):
+
+    def test_create_accommodation(self):
+        """Verify CU specialist can create accommodations."""
+        role = f"cu:specialist:{self.cu_specialist.id}"
+        url = self._get_list_url(role)
+        data = {
+            'type': 'apartment',
+            'address': '123 Test',
+            'room_number': '12A',
+            'flat_number': '23',
+            'floor_number': '3',
+            'available_from': '2025-04-28',
+            'available_until': '2025-05-28',
+            'beds': 3,
+            'bedrooms': 2,
+            'daily_price': '250', 
+            'owner_id': self.owner.id,  
+            'available_at_universities': ["CU"]  
+        }
+        response = self.client.post(url, data, format='json')
+        # print(response.data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        
+    def test_update_accommodation(self):
+        role = f"cu:specialist:{self.cu_specialist.id}"
+        url = self._get_detail_url(role, self.acc4_all.id)
+        data = {
+            'type': 'apartment',
+            'address': '123 Update',
+            'room_number': '12A',
+            'flat_number': '23',
+            'floor_number': '3',
+            'available_from': '2025-04-28',
+            'available_until': '2025-05-28',
+            'beds': 3,
+            'bedrooms': 2,
+            'daily_price': '250', 
+            'owner_id': self.owner.id,  
+            'available_at_universities': ["CU"]  
+        }  
+        response = self.client.put(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_delete_accommodation(self):
+        role = f"cu:specialist:{self.cu_specialist.id}"
+        url = self._get_detail_url(role, self.acc4_all.id)
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_list_nearby_accommodations(self):
+        response = self.client.get(f"accommodations/nearby/?location_name=CUHK Campus?role=cu:specialist:{self.cu_specialist.id}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        print(response.data)

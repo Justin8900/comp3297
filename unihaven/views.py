@@ -106,9 +106,23 @@ class PropertyOwnerViewSet(viewsets.ModelViewSet):
 @extend_schema_view(
     # Update descriptions and parameters for new role format 'uni_code:role_type:role_id'
     list=extend_schema(
-        summary="List accommodations by university",
-        description="List accommodations available at the user's university. Accessible by Members and Specialists.",
-        parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:member:uid' or 'uni_code:specialist[:id]')", required=True, type=str)]
+        summary="List accommodations by university with filters",
+        description="List accommodations available at the user's university, with optional filters for type, beds, bedrooms, price, availability dates, rating, and distance from a university location.",
+        parameters=[
+            OpenApiParameter(name="role", description="User role (format: 'uni_code:member:uid' or 'uni_code:specialist[:id]')", required=True, type=str),
+            OpenApiParameter(name="type", description="Filter by accommodation type (e.g., 'apartment', 'house', 'room')", required=False, type=str, enum=['apartment', 'house', 'room']),
+            OpenApiParameter(name="min_beds", description="Minimum number of beds", required=False, type=int),
+            OpenApiParameter(name="beds", description="Exact number of beds", required=False, type=int),
+            OpenApiParameter(name="min_bedrooms", description="Minimum number of bedrooms", required=False, type=int),
+            OpenApiParameter(name="bedrooms", description="Exact number of bedrooms", required=False, type=int),
+            OpenApiParameter(name="max_price", description="Maximum daily price", required=False, type=float),
+            OpenApiParameter(name="available_from", description="Available from date (YYYY-MM-DD)", required=False, type=str),
+            OpenApiParameter(name="available_until", description="Available until date (YYYY-MM-DD)", required=False, type=str),
+            OpenApiParameter(name="min_rating", description="Minimum average rating", required=False, type=float),
+            OpenApiParameter(name="rating", description="Exact average rating (within 0.1)", required=False, type=float),
+            OpenApiParameter(name="distance_from", description="Name of UniversityLocation to calculate distance from", required=False, type=str)
+        ],
+        responses={200: AccommodationSerializer(many=True)}
     ),
     create=extend_schema(
         summary="Create accommodation (Managing Specialists Only)",
@@ -153,6 +167,123 @@ class AccommodationViewSet(viewsets.ModelViewSet):
     queryset = Accommodation.objects.all().order_by('id') # Base queryset
     serializer_class = AccommodationSerializer
     # permission_classes = [IsMemberOrSpecialist] # Default - get_permissions overrides
+
+    def list(self, request, *args, **kwargs):
+        """List accommodations with filters for type, beds, bedrooms, price, dates, rating, and distance."""
+        try:
+            uni_code, role_type, role_id = get_role_or_403(request)
+        except PermissionDenied as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+
+        queryset = self.get_queryset()
+
+        # Apply type filter with validation
+        if 'type' in request.query_params:
+            type_value = request.query_params['type']
+            valid_types = [choice[0] for choice in getattr(Accommodation, 'TYPE_CHOICES', [('apartment', 'Apartment'), ('house', 'House'), ('room', 'Room')])]
+            if type_value not in valid_types:
+                return Response({"error": f"Invalid type value. Must be one of: {', '.join(valid_types)}."}, status=status.HTTP_400_BAD_REQUEST)
+            queryset = queryset.filter(type=type_value)
+            
+        # Apply other queryset filters
+        if 'min_beds' in request.query_params:
+            try:
+                queryset = queryset.filter(beds__gte=int(request.query_params['min_beds']))
+            except ValueError:
+                return Response({"error": "Invalid min_beds value."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if 'beds' in request.query_params:
+            try:
+                queryset = queryset.filter(beds=int(request.query_params['beds']))
+            except ValueError:
+                return Response({"error": "Invalid beds value."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if 'min_bedrooms' in request.query_params:
+            try:
+                queryset = queryset.filter(bedrooms__gte=int(request.query_params['min_bedrooms']))
+            except ValueError:
+                return Response({"error": "Invalid min_bedrooms value."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if 'bedrooms' in request.query_params:
+            try:
+                queryset = queryset.filter(bedrooms=int(request.query_params['bedrooms']))
+            except ValueError:
+                return Response({"error": "Invalid bedrooms value."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if 'max_price' in request.query_params:
+            try:
+                queryset = queryset.filter(daily_price__lte=float(request.query_params['max_price']))
+            except ValueError:
+                return Response({"error": "Invalid max_price value."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        today = datetime.now().date()
+        
+        if 'available_from' in request.query_params:
+            try:
+                available_from = datetime.strptime(request.query_params['available_from'], '%Y-%m-%d').date()
+                queryset = queryset.filter(available_from__lte=available_from, available_until__gte=available_from)
+            except ValueError:
+                return Response({"error": "Invalid date format for available_from. Use YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+                
+        if 'available_until' in request.query_params:
+            try:
+                available_until = datetime.strptime(request.query_params['available_until'], '%Y-%m-%d').date()
+                queryset = queryset.filter(available_from__lte=available_until, available_until__gte=available_until)
+            except ValueError:
+                return Response({"error": "Invalid date format for available_until. Use YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        filtered_accommodations = queryset
+
+        if 'min_rating' in request.query_params:
+            try:
+                min_rating = float(request.query_params['min_rating'])
+                filtered_accommodations = [acc for acc in filtered_accommodations if acc.average_rating >= min_rating]
+            except ValueError:
+                return Response({"error": "Invalid min_rating value."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if 'rating' in request.query_params:
+            try:
+                rating = float(request.query_params['rating'])
+                filtered_accommodations = [acc for acc in filtered_accommodations if abs(acc.average_rating - rating) < 0.1]
+            except ValueError:
+                return Response({"error": "Invalid rating value."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Handle distance-based filtering
+        if 'distance_from' in request.query_params:
+            location_name = request.query_params.get('distance_from', '')
+            try:
+                ref_location = UniversityLocation.objects.get(
+                    university__code__iexact=uni_code, 
+                    name__iexact=location_name
+                )
+                source_lat = ref_location.latitude
+                source_lon = ref_location.longitude
+            except UniversityLocation.DoesNotExist:
+                return Response(
+                    {"error": f"Location '{location_name}' not found for university '{uni_code}'."}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            except Exception as e:
+                logger.error(f"Error fetching UniversityLocation for list: {e}")
+                return Response({"detail": "Error retrieving reference location."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            results = []
+            for acc in filtered_accommodations:
+                if acc.latitude is not None and acc.longitude is not None:
+                    try:
+                        distance = calculate_distance(source_lat, source_lon, acc.latitude, acc.longitude)
+                        acc_data = AccommodationSerializer(acc, context=self.get_serializer_context()).data
+                        acc_data['distance_km'] = round(distance, 2)
+                        results.append(acc_data)
+                    except Exception as e:
+                        logger.error(f"Error calculating distance for accommodation {acc.id}: {e}")
+                        continue
+            results.sort(key=lambda x: x['distance_km'])
+            return Response(results)
+        
+        # Serialize results without distance
+        serializer = self.get_serializer(filtered_accommodations, many=True)
+        return Response(serializer.data)
 
     def get_permissions(self):
         """Assign permissions based on action using new classes."""
