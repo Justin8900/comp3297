@@ -144,6 +144,54 @@ class ReservationMemberActionsTests(ReservationBaseTestCase):
         # with self.assertRaises(Reservation.DoesNotExist):
         #     Reservation.objects.get(pk=self.res_hku_confirmed_for_cancel.id)
 
+    def test_create_reservation(self):
+        """Verify member can create a new reservation (POST)."""
+        role = f"hku:member:{self.hku_member.uid}"
+        url = reverse('reservation-list')
+        url_with_role = f"{url}?role={role}"
+        data = {
+            "accommodation": self.acc3_all_unis.id,
+            "university": self.hku.code,
+            "start_date": "2026-02-01",
+            "end_date": "2026-02-10"
+        }
+        response = self.client.post(url_with_role, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        # Verify the reservation is created
+        reservation = Reservation.objects.get(pk=response.data['id'])
+        self.assertEqual(reservation.member, self.hku_member)
+        self.assertEqual(reservation.accommodation, self.acc3_all_unis)
+        self.assertEqual(reservation.university, self.hku)
+        self.assertEqual(reservation.status, 'pending')  # Default status for new reservations
+        self.assertEqual(response.data['start_date'], data['start_date'])
+        self.assertEqual(response.data['end_date'], data['end_date'])
+        self.assertEqual(reservation.start_date.strftime('%Y-%m-%d'), data['start_date'])
+        self.assertEqual(reservation.end_date.strftime('%Y-%m-%d'), data['end_date'])
+
+    def test_list_reservations(self):
+        """Verify member can list their own reservations (GET)."""
+        role = f"hku:member:{self.hku_member.uid}"
+        url = reverse('reservation-list')
+        url_with_role = f"{url}?role={role}"
+        response = self.client.get(url_with_role)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Check if the response contains the member's reservations
+        print("Response data:", response.data)
+        reservation_ids = [res['id'] for res in response.data['results']]
+        self.assertIn(self.res_hku_pending.id, reservation_ids)
+        self.assertIn(self.res_hku_confirmed_for_cancel.id, reservation_ids)
+        self.assertNotIn(self.res_cu_confirmed.id, reservation_ids)
+        self.assertNotIn(self.res_hkust_completed.id, reservation_ids)
+        # Check the count of reservations
+        self.assertEqual(len(reservation_ids), 2)  # Only HKU member's reservations should be listed
+        # Check the status of the reservations
+        self.assertEqual(response.data['results'][0]['status'], 'confirmed')
+        self.assertEqual(response.data['results'][1]['status'], 'pending')
+        # Check the university of the reservations
+        self.assertEqual(response.data['results'][0]['university'], self.hku.code)
+        self.assertEqual(response.data['results'][1]['university'], self.hku.code)
+       
 class ReservationSpecialistActionsTests(ReservationBaseTestCase):
 
     def test_specialist_can_cancel_own_uni_pending_reservation(self):

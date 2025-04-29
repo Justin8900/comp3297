@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Unihaven API
-  version: 1.0.0
+  version: 2.0.0
   description: "\nAPI for Unihaven project - a platform for university student accommodation\
     \ management.\n\n## Role-Based Access Control\n\nThis API implements role-based\
     \ access control through query parameters. For most endpoints, you must include\
@@ -64,10 +64,58 @@ paths:
   /accommodations/:
     get:
       operationId: accommodations_list
-      description: List accommodations available at the user's university. Accessible
-        by Members and Specialists.
-      summary: List accommodations by university
+      description: List accommodations available at the user's university, with optional
+        filters for type, beds, bedrooms, price, availability dates, rating, and distance
+        from a university location.
+      summary: List accommodations by university with filters
       parameters:
+      - in: query
+        name: available_from
+        schema:
+          type: string
+        description: Available from date (YYYY-MM-DD)
+      - in: query
+        name: available_until
+        schema:
+          type: string
+        description: Available until date (YYYY-MM-DD)
+      - in: query
+        name: bedrooms
+        schema:
+          type: integer
+        description: Exact number of bedrooms
+      - in: query
+        name: beds
+        schema:
+          type: integer
+        description: Exact number of beds
+      - in: query
+        name: distance_from
+        schema:
+          type: string
+        description: Name of UniversityLocation to calculate distance from
+      - in: query
+        name: max_price
+        schema:
+          type: number
+          format: double
+        description: Maximum daily price
+      - in: query
+        name: min_bedrooms
+        schema:
+          type: integer
+        description: Minimum number of bedrooms
+      - in: query
+        name: min_beds
+        schema:
+          type: integer
+        description: Minimum number of beds
+      - in: query
+        name: min_rating
+        schema:
+          type: number
+          format: double
+        description: Minimum average rating
       - name: ordering
         required: false
         in: query
@@ -81,6 +129,12 @@ paths:
         schema:
           type: integer
       - in: query
+        name: rating
+        schema:
+          type: number
+          format: double
+        description: Exact average rating (within 0.1)
+      - in: query
         name: role
         schema:
           type: string
@@ -92,11 +146,17 @@ paths:
         description: A search term.
         schema:
           type: string
+      - in: query
+        name: type
+        schema:
+          type: string
+          enum:
+          - apartment
+          - house
+          - room
+        description: Filter by accommodation type (e.g., 'apartment', 'house', 'room')
       tags:
       - accommodations
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -130,9 +190,6 @@ paths:
             schema:
               $ref: '#/components/schemas/AccommodationRequest'
         required: true
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '201':
           content:
@@ -161,9 +218,6 @@ paths:
         required: true
       tags:
       - accommodations
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -203,9 +257,6 @@ paths:
             schema:
               $ref: '#/components/schemas/AccommodationRequest'
         required: true
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -244,9 +295,6 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/PatchedAccommodationRequest'
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -274,9 +322,6 @@ paths:
         required: true
       tags:
       - accommodations
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '204':
           description: No response body
@@ -320,9 +365,6 @@ paths:
           type: string
       tags:
       - accommodations
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -362,9 +404,6 @@ paths:
           type: string
       tags:
       - members
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -397,9 +436,6 @@ paths:
             schema:
               $ref: '#/components/schemas/MemberRequest'
         required: true
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '201':
           content:
@@ -428,9 +464,6 @@ paths:
         required: true
       tags:
       - members
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -470,9 +503,6 @@ paths:
             schema:
               $ref: '#/components/schemas/MemberRequest'
         required: true
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -511,9 +541,6 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/PatchedMemberRequest'
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -540,9 +567,6 @@ paths:
         required: true
       tags:
       - members
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '204':
           description: No response body
@@ -596,9 +620,6 @@ paths:
         required: true
       tags:
       - members
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -638,9 +659,6 @@ paths:
           type: string
       tags:
       - property-owners
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -673,9 +691,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PropertyOwnerRequest'
         required: true
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '201':
           content:
@@ -704,9 +719,6 @@ paths:
         required: true
       tags:
       - property-owners
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -745,9 +757,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PropertyOwnerRequest'
         required: true
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -785,9 +794,6 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/PatchedPropertyOwnerRequest'
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -814,9 +820,6 @@ paths:
         required: true
       tags:
       - property-owners
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '204':
           description: No response body
@@ -868,9 +871,6 @@ paths:
           type: string
       tags:
       - ratings
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -904,9 +904,6 @@ paths:
             schema:
               $ref: '#/components/schemas/RatingRequest'
         required: true
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '201':
           content:
@@ -936,9 +933,6 @@ paths:
         required: true
       tags:
       - ratings
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -965,9 +959,6 @@ paths:
         required: true
       tags:
       - ratings
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '204':
           description: No response body
@@ -1024,9 +1015,6 @@ paths:
         description: Filter by status
       tags:
       - reservations
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -1061,9 +1049,6 @@ paths:
             schema:
               $ref: '#/components/schemas/ReservationRequest'
         required: true
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '201':
           content:
@@ -1092,9 +1077,6 @@ paths:
         required: true
       tags:
       - reservations
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -1134,9 +1116,6 @@ paths:
             schema:
               $ref: '#/components/schemas/ReservationRequest'
         required: true
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -1175,9 +1154,6 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/PatchedReservationRequest'
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -1205,116 +1181,9 @@ paths:
         required: true
       tags:
       - reservations
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '204':
           description: No response body
-  /reservations/{id}/cancel/:
-    post:
-      operationId: reservations_cancel_create
-      description: Cancel an existing reservation. Members can cancel their own. Specialists
-        can cancel reservations within their university.
-      summary: Cancel a reservation
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this reservation.
-        required: true
-      - in: query
-        name: role
-        schema:
-          type: string
-        description: 'User role (format: ''uni_code:member:uid'' or ''uni_code:specialist[:id]'')'
-        required: true
-      tags:
-      - reservations
-      security:
-      - cookieAuth: []
-      - basicAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Reservation'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-  /reservations/{id}/confirm/:
-    post:
-      operationId: reservations_confirm_create
-      description: Confirm a pending reservation. Requires Specialist role from the
-        reservation's university.
-      summary: Confirm a reservation (Specialists Only)
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this reservation.
-        required: true
-      - in: query
-        name: role
-        schema:
-          type: string
-        description: 'User role (format: ''uni_code:specialist[:id]'')'
-        required: true
-      tags:
-      - reservations
-      security:
-      - cookieAuth: []
-      - basicAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Reservation'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
   /specialists/:
     get:
       operationId: specialists_list
@@ -1347,9 +1216,6 @@ paths:
           type: string
       tags:
       - specialists
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -1377,9 +1243,6 @@ paths:
         required: true
       tags:
       - specialists
-      security:
-      - cookieAuth: []
-      - basicAuth: []
       responses:
         '200':
           content:
@@ -1597,7 +1460,7 @@ components:
       properties:
         uid:
           type: string
-          readOnly: true
+          maxLength: 255
         name:
           type: string
           maxLength: 255
@@ -1621,12 +1484,17 @@ components:
       type: object
       description: Serializer for the concrete Member model.
       properties:
+        uid:
+          type: string
+          minLength: 1
+          maxLength: 255
         name:
           type: string
           minLength: 1
           maxLength: 255
       required:
       - name
+      - uid
     PaginatedAccommodationList:
       type: object
       required:
@@ -1848,6 +1716,10 @@ components:
       type: object
       description: Serializer for the concrete Member model.
       properties:
+        uid:
+          type: string
+          minLength: 1
+          maxLength: 255
         name:
           type: string
           minLength: 1
@@ -2091,14 +1963,6 @@ components:
       - id
       - name
       - university
-  securitySchemes:
-    basicAuth:
-      type: http
-      scheme: basic
-    cookieAuth:
-      type: apiKey
-      in: cookie
-      name: sessionid
 tags:
 - name: accommodations
   description: Operations related to student accommodations
