@@ -217,7 +217,7 @@ The API generally follows a resource-oriented design. Specific actions often use
 
 1.  **Property Owners (`/property-owners/`)**: Only Specialists (`uni_code:specialist[:id]`) can perform List, Create, Retrieve, Update, Delete.
 2.  **Accommodations (`/accommodations/`)**:
-    - List/Retrieve/Nearby: Any Member (`uni_code:member:uid`) or Specialist (`uni_code:specialist[:id]`). View filters by university.
+    - List/Retrieve: Any Member (`uni_code:member:uid`) or Specialist (`uni_code:specialist[:id]`). View filters by university.
     - Create/Update/Delete: Only Specialists (`uni_code:specialist[:id]`) whose university is linked to the accommodation.
 3.  **Members (`/members/`)**:
     - List/Create/Delete: Only Specialists (`uni_code:specialist[:id]`) from the target university.

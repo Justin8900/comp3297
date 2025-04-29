@@ -77,6 +77,7 @@ class Accommodation(models.Model):
     Attributes:
         type (str): Type of accommodation.
         address (str): Basic address line.
+        building_name (str): Building name.
         room_number (str): Room number, optional.
         flat_number (str): Flat number.
         floor_number (str): Floor number.
@@ -100,6 +101,7 @@ class Accommodation(models.Model):
     ]
     type = models.CharField(max_length=50, choices=TYPE_CHOICES)
     address = models.CharField(max_length=255)
+    building_name = models.CharField(max_length=255, default='', blank=True)
     room_number = models.CharField(max_length=50, null=True, blank=True)
     flat_number = models.CharField(max_length=50, default='')
     floor_number = models.CharField(max_length=50, default='')
@@ -140,7 +142,8 @@ class Accommodation(models.Model):
         """
         from unihaven.utils.geocoding import geocode_address
         
-        full_address = f"{self.room_number or ''} {self.flat_number} {self.floor_number} {self.address}".strip()
+        # Construct address from detailed fields including building_name
+        full_address = f"{self.room_number or ''} {self.flat_number} {self.floor_number} {self.building_name}".strip()
 
         lat, lng, geo = geocode_address(full_address)
         
@@ -178,6 +181,7 @@ class Member(models.Model):
     uid = models.CharField(max_length=255, primary_key=True)
     name = models.CharField(max_length=255)
     university = models.ForeignKey(University, on_delete=models.CASCADE, related_name="members") # related_name is OK here
+    contact = models.CharField(max_length=50, blank=True, null=True)
 
     # Add methods directly here if they are common
     # e.g., searchAccommodation, reserveAccommodation, etc.
@@ -263,8 +267,8 @@ class Reservation(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     cancelled_by = models.CharField(max_length=50, null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(null=True, blank=True)
     university = models.ForeignKey(University, on_delete=models.CASCADE, related_name="reservations", null=True)
 
     def __str__(self):

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Unihaven API
-  version: 2.0.0
+  version: 1.0.0
   description: "\nAPI for Unihaven project - a platform for university student accommodation\
     \ management.\n\n## Role-Based Access Control\n\nThis API implements role-based\
     \ access control through query parameters. For most endpoints, you must include\
@@ -25,14 +25,13 @@ info:
     \ is assumed.\n\n### Permission Rules Summary (Simplified):\n\n1.  **Property\
     \ Owners (`/property-owners/`)**: Only Specialists (`uni_code:specialist[:id]`)\
     \ can perform List, Create, Retrieve, Update, Delete.\n2.  **Accommodations (`/accommodations/`)**:\n\
-    \    - List/Retrieve/Nearby: Any Member (`uni_code:member:uid`) or Specialist\
-    \ (`uni_code:specialist[:id]`). View filters by university.\n    - Create/Update/Delete:\
-    \ Only Specialists (`uni_code:specialist[:id]`) whose university is linked to\
-    \ the accommodation.\n3.  **Members (`/members/`)**:\n    - List/Create/Delete:\
-    \ Only Specialists (`uni_code:specialist[:id]`) from the target university.\n\
-    \    - Retrieve/Update: Specialists (`uni_code:specialist[:id]`) from the same\
-    \ university OR the specific Member themselves (`uni_code:member:<uid>`).\n  \
-    \  - List Reservations (`/members/{uid}/reservations/`): Specialists (`uni_code:specialist[:id]`)\
+    \    - List/Retrieve: Any Member (`uni_code:member:uid`) or Specialist (`uni_code:specialist[:id]`).\
+    \ View filters by university.\n    - Create/Update/Delete: Only Specialists (`uni_code:specialist[:id]`)\
+    \ whose university is linked to the accommodation.\n3.  **Members (`/members/`)**:\n\
+    \    - List/Create/Delete: Only Specialists (`uni_code:specialist[:id]`) from\
+    \ the target university.\n    - Retrieve/Update: Specialists (`uni_code:specialist[:id]`)\
+    \ from the same university OR the specific Member themselves (`uni_code:member:<uid>`).\n\
+    \    - List Reservations (`/members/{uid}/reservations/`): Specialists (`uni_code:specialist[:id]`)\
     \ from the same university OR the specific Member themselves (`uni_code:member:<uid>`).\n\
     4.  **Specialists (`/specialists/`)**: \n    - List/Retrieve: Only Specialists\
     \ (`uni_code:specialist[:id]`) from the same university.\n    - Create/Update/Delete:\
@@ -325,53 +324,6 @@ paths:
       responses:
         '204':
           description: No response body
-  /accommodations/nearby/:
-    get:
-      operationId: accommodations_nearby_list
-      description: List accommodations available at the user's university, sorted
-        by distance from a specified university location.
-      summary: List accommodations sorted by distance
-      parameters:
-      - in: query
-        name: location_name
-        schema:
-          type: string
-        description: Name of the UniversityLocation to calculate distance from (e.g.,
-          'Main Campus', 'CUHK Campus')
-        required: true
-      - name: ordering
-        required: false
-        in: query
-        description: Which field to use when ordering the results.
-        schema:
-          type: string
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - in: query
-        name: role
-        schema:
-          type: string
-        description: 'User role (format: ''uni_code:member:uid'' or ''uni_code:specialist[:id]'')'
-        required: true
-      - name: search
-        required: false
-        in: query
-        description: A search term.
-        schema:
-          type: string
-      tags:
-      - accommodations
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedAccommodationList'
-          description: ''
   /members/:
     get:
       operationId: members_list
@@ -1476,6 +1428,10 @@ components:
             * `HKUST` - Hong Kong University of Science and Technology
           x-spec-enum-id: 6a572ca0828b1abe
           readOnly: true
+        contact:
+          type: string
+          nullable: true
+          maxLength: 50
       required:
       - name
       - uid
@@ -1492,6 +1448,10 @@ components:
           type: string
           minLength: 1
           maxLength: 255
+        contact:
+          type: string
+          nullable: true
+          maxLength: 50
       required:
       - name
       - uid
@@ -1724,6 +1684,10 @@ components:
           type: string
           minLength: 1
           maxLength: 255
+        contact:
+          type: string
+          nullable: true
+          maxLength: 50
     PatchedPropertyOwnerRequest:
       type: object
       description: Serializer for the PropertyOwner model.

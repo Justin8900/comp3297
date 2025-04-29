@@ -33,7 +33,7 @@ class MemberSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Member # Point to the concrete Member model
-        fields = ['uid', 'name', 'university']
+        fields = ['uid', 'name', 'university', 'contact']
         # Allow UID to be provided during creation
         read_only_fields = ['university'] # University is set by perform_create
 

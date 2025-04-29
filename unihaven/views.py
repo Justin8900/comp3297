@@ -149,15 +149,6 @@ class PropertyOwnerViewSet(viewsets.ModelViewSet):
         description="Delete an accommodation listing. Requires a Specialist role from a university managing the accommodation.",
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)]
     ),
-    nearby=extend_schema( # Schema for the new action
-        summary="List accommodations sorted by distance",
-        description="List accommodations available at the user's university, sorted by distance from a specified university location.",
-        parameters=[
-            OpenApiParameter(name="role", description="User role (format: 'uni_code:member:uid' or 'uni_code:specialist[:id]')", required=True, type=str),
-            OpenApiParameter(name="location_name", description="Name of the UniversityLocation to calculate distance from (e.g., 'Main Campus', 'CUHK Campus')", required=True, type=str)
-        ],
-        responses={200: AccommodationSerializer(many=True)}
-    )
 )
 class AccommodationViewSet(viewsets.ModelViewSet):
     """
