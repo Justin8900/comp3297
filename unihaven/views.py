@@ -58,10 +58,10 @@ def get_role_or_403(request):
 
 # --- PropertyOwner ViewSet ---
 @extend_schema_view(
-    # Update descriptions and parameters to reflect new role format 'uni_code:specialist[:id]'
     list=extend_schema(
         summary="List property owners (Specialists Only)",
         description="List all property owners. Requires a Specialist role.",
+        # Explicitly define ONLY the desired parameters for the list view
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)]
     ),
     create=extend_schema(
@@ -96,18 +96,19 @@ class PropertyOwnerViewSet(viewsets.ModelViewSet):
     """
     queryset = PropertyOwner.objects.all().order_by('id')
     serializer_class = PropertyOwnerSerializer
-    # Use the new IsSpecialist permission
-    permission_classes = [IsSpecialist] 
+    permission_classes = [IsSpecialist]
+    filter_backends = []  # Override global filter backends
+    pagination_class = None # Override global pagination
 
     # Standard methods can rely on permission_classes now, no need to override unless adding logic
 
 
 # --- Accommodation ViewSet ---
 @extend_schema_view(
-    # Update descriptions and parameters for new role format 'uni_code:role_type:role_id'
     list=extend_schema(
         summary="List accommodations by university with filters",
         description="List accommodations available at the user's university, with optional filters for type, beds, bedrooms, price, availability dates, rating, and distance from a university location.",
+        # Explicitly define ONLY the desired parameters for the list view
         parameters=[
             OpenApiParameter(name="role", description="User role (format: 'uni_code:member:uid' or 'uni_code:specialist[:id]')", required=True, type=str),
             OpenApiParameter(name="type", description="Filter by accommodation type (e.g., 'apartment', 'house', 'room')", required=False, type=str, enum=['apartment', 'house', 'room']),
@@ -157,7 +158,8 @@ class AccommodationViewSet(viewsets.ModelViewSet):
     """
     queryset = Accommodation.objects.all().order_by('id') # Base queryset
     serializer_class = AccommodationSerializer
-    # permission_classes = [IsMemberOrSpecialist] # Default - get_permissions overrides
+    filter_backends = []  # Override global filter backends
+    pagination_class = None # Override global pagination
 
     def list(self, request, *args, **kwargs):
         """List accommodations with filters for type, beds, bedrooms, price, dates, rating, and distance."""
@@ -423,10 +425,10 @@ class AccommodationViewSet(viewsets.ModelViewSet):
 
 # --- Member ViewSet (Now uses concrete Member model) ---
 @extend_schema_view(
-    # Update descriptions and parameters for new role format and BaseMember
     list=extend_schema(
         summary="List members (Specialists Only)",
         description="List all members within the specialist's university.",
+        # Explicitly define ONLY the desired parameters for the list view
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)]
     ),
     create=extend_schema(
@@ -463,6 +465,8 @@ class MemberViewSet(viewsets.ModelViewSet):
     queryset = Member.objects.all() 
     serializer_class = MemberSerializer 
     lookup_field = 'uid' 
+    filter_backends = []  # Override global filter backends
+    pagination_class = None # Override global pagination
 
     def get_permissions(self):
         """Assign permissions based on action."""
@@ -538,10 +542,10 @@ class MemberViewSet(viewsets.ModelViewSet):
 
 # --- Specialist ViewSet (Generalized from CEDARSSpecialistViewSet) ---
 @extend_schema_view(
-    # Update descriptions and parameters
     list=extend_schema(
         summary="List specialists (Specialists Only)",
         description="List all specialists within the requesting specialist's university.",
+        # Explicitly define ONLY the desired parameters for the list view
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)]
     ),
     create=extend_schema(
@@ -582,8 +586,9 @@ class SpecialistViewSet(viewsets.ModelViewSet):
     """
     queryset = Specialist.objects.all().order_by('university__code', 'name')
     serializer_class = SpecialistSerializer # Use generic SpecialistSerializer
-    # Stricter permissions by default
     permission_classes = [IsSpecialist] # Base requirement
+    filter_backends = []  # Override global filter backends
+    pagination_class = None # Override global pagination
 
     def get_permissions(self):
         """Assign permissions - Restrict modifications for now."""
@@ -643,6 +648,7 @@ class SpecialistViewSet(viewsets.ModelViewSet):
     list=extend_schema(
         summary="List reservations (Members see own, Specialists see their Uni's)",
         description="List reservations based on role. Members see their own. Specialists see all reservations within their university.",
+        # Explicitly define ONLY the desired parameters for the list view
         parameters=[
             OpenApiParameter(name="role", description="User role (format: 'uni_code:member:uid' or 'uni_code:specialist[:id]')", required=True, type=str),
             OpenApiParameter(name="member_id", description="Filter by member UID (Specialists only)", required=False, type=str),
@@ -685,6 +691,8 @@ class ReservationViewSet(viewsets.ModelViewSet):
     """
     queryset = Reservation.objects.all().order_by('-created_at')
     serializer_class = ReservationSerializer 
+    filter_backends = []  # Override global filter backends
+    pagination_class = None # Override global pagination
 
     def get_permissions(self):
         """Assign permissions based on action."""
@@ -918,11 +926,13 @@ The UniHaven Team
     list=extend_schema(
         summary="List ratings (Public within University)",
         description="List ratings associated with the user's university. Visible to all Members and Specialists of that university. Can be filtered by accommodation_id.",
+        # Explicitly define ONLY the desired parameters for the list view
         parameters=[
             OpenApiParameter(name="role", description="User role (format: 'uni_code:member:uid' or 'uni_code:specialist[:id]')", required=True, type=str),
             OpenApiParameter(name="reservation_id", description="Filter by reservation ID", required=False, type=int),
             OpenApiParameter(name="accommodation_id", description="Filter by accommodation ID", required=False, type=int),
             OpenApiParameter(name="member_id", description="Filter by member UID (Specialists only)", required=False, type=str)
+            # Parameters 'page', 'search', 'ordering' are omitted here, so they won't appear in the schema for list
         ]
     ),
      create=extend_schema( 
@@ -962,6 +972,8 @@ class RatingViewSet(viewsets.ModelViewSet):
     """
     queryset = Rating.objects.all().order_by('-date_rated')
     serializer_class = RatingSerializer
+    filter_backends = []  # Override global filter backends
+    pagination_class = None # Override global pagination
 
     def get_permissions(self):
         """Assign permissions based on action."""

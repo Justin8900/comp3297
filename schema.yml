@@ -119,18 +119,6 @@ paths:
           type: number
           format: double
         description: Minimum average rating
-      - name: ordering
-        required: false
-        in: query
-        description: Which field to use when ordering the results.
-        schema:
-          type: string
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
       - in: query
         name: rating
         schema:
@@ -143,12 +131,6 @@ paths:
           type: string
         description: 'User role (format: ''uni_code:member:uid'' or ''uni_code:specialist[:id]'')'
         required: true
-      - name: search
-        required: false
-        in: query
-        description: A search term.
-        schema:
-          type: string
       - in: query
         name: type
         schema:
@@ -165,7 +147,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedAccommodationList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/Accommodation'
           description: ''
     post:
       operationId: accommodations_create
@@ -334,30 +318,12 @@ paths:
       description: List all members within the specialist's university.
       summary: List members (Specialists Only)
       parameters:
-      - name: ordering
-        required: false
-        in: query
-        description: Which field to use when ordering the results.
-        schema:
-          type: string
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
       - in: query
         name: role
         schema:
           type: string
         description: 'User role (format: ''uni_code:specialist[:id]'')'
         required: true
-      - name: search
-        required: false
-        in: query
-        description: A search term.
-        schema:
-          type: string
       tags:
       - members
       responses:
@@ -365,7 +331,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedMemberList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/Member'
           description: ''
     post:
       operationId: members_create
@@ -534,30 +502,12 @@ paths:
         for members within their university.
       summary: List reservations for a member
       parameters:
-      - name: ordering
-        required: false
-        in: query
-        description: Which field to use when ordering the results.
-        schema:
-          type: string
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
       - in: query
         name: role
         schema:
           type: string
         description: 'User role (format: ''uni_code:member:uid'' or ''uni_code:specialist[:id]'')'
         required: true
-      - name: search
-        required: false
-        in: query
-        description: A search term.
-        schema:
-          type: string
       - in: query
         name: status
         schema:
@@ -581,7 +531,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedReservationList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/Reservation'
           description: ''
   /property-owners/:
     get:
@@ -589,30 +541,12 @@ paths:
       description: List all property owners. Requires a Specialist role.
       summary: List property owners (Specialists Only)
       parameters:
-      - name: ordering
-        required: false
-        in: query
-        description: Which field to use when ordering the results.
-        schema:
-          type: string
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
       - in: query
         name: role
         schema:
           type: string
         description: 'User role (format: ''uni_code:specialist[:id]'')'
         required: true
-      - name: search
-        required: false
-        in: query
-        description: A search term.
-        schema:
-          type: string
       tags:
       - property-owners
       responses:
@@ -620,7 +554,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedPropertyOwnerList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/PropertyOwner'
           description: ''
     post:
       operationId: property_owners_create
@@ -796,18 +732,6 @@ paths:
         schema:
           type: string
         description: Filter by member UID (Specialists only)
-      - name: ordering
-        required: false
-        in: query
-        description: Which field to use when ordering the results.
-        schema:
-          type: string
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
       - in: query
         name: reservation_id
         schema:
@@ -819,12 +743,6 @@ paths:
           type: string
         description: 'User role (format: ''uni_code:member:uid'' or ''uni_code:specialist[:id]'')'
         required: true
-      - name: search
-        required: false
-        in: query
-        description: A search term.
-        schema:
-          type: string
       tags:
       - ratings
       responses:
@@ -832,7 +750,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedRatingList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/Rating'
           description: ''
     post:
       operationId: ratings_create
@@ -934,30 +854,12 @@ paths:
         schema:
           type: string
         description: Filter by member UID (Specialists only)
-      - name: ordering
-        required: false
-        in: query
-        description: Which field to use when ordering the results.
-        schema:
-          type: string
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
       - in: query
         name: role
         schema:
           type: string
         description: 'User role (format: ''uni_code:member:uid'' or ''uni_code:specialist[:id]'')'
         required: true
-      - name: search
-        required: false
-        in: query
-        description: A search term.
-        schema:
-          type: string
       - in: query
         name: status
         schema:
@@ -975,7 +877,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedReservationList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/Reservation'
           description: ''
     post:
       operationId: reservations_create
@@ -1125,30 +1029,12 @@ paths:
       description: List all specialists within the requesting specialist's university.
       summary: List specialists (Specialists Only)
       parameters:
-      - name: ordering
-        required: false
-        in: query
-        description: Which field to use when ordering the results.
-        schema:
-          type: string
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
       - in: query
         name: role
         schema:
           type: string
         description: 'User role (format: ''uni_code:specialist[:id]'')'
         required: true
-      - name: search
-        required: false
-        in: query
-        description: A search term.
-        schema:
-          type: string
       tags:
       - specialists
       responses:
@@ -1156,7 +1042,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedSpecialistList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/Specialist'
           description: ''
     post:
       operationId: specialists_create
@@ -1487,144 +1375,6 @@ components:
       required:
       - name
       - uid
-    PaginatedAccommodationList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Accommodation'
-    PaginatedMemberList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Member'
-    PaginatedPropertyOwnerList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/PropertyOwner'
-    PaginatedRatingList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Rating'
-    PaginatedReservationList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Reservation'
-    PaginatedSpecialistList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Specialist'
     PatchedAccommodationRequest:
       type: object
       description: |-
