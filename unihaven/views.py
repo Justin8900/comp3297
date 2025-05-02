@@ -545,10 +545,10 @@ class MemberViewSet(viewsets.ModelViewSet):
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)]
     ),
     create=extend_schema(
-        summary="Create specialist (Admin/Superusers Only - TBD)",
-        description="Create a new specialist. Typically restricted to superusers.",
+        summary="Create specialist (Specialists Only)",
+        description="Create a new specialist within the requesting specialist's university. Requires Specialist role.", # Updated description
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)],
-        exclude=True # Exclude for now, requires higher privilege
+        # exclude=True # Removed exclude
     ),
     retrieve=extend_schema(
         summary="Retrieve specialist (Specialists Only)",
@@ -590,7 +590,10 @@ class SpecialistViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve']:
             # Specialists can view others in their university
             permission_classes_list = [IsSpecialist] 
-        elif self.action in ['create', 'update', 'partial_update', 'destroy']:
+        elif self.action == 'create': # Changed condition
+            # Allow specialists to create other specialists in their uni
+            permission_classes_list = [IsSpecialist] # Changed from IsAdminUser
+        elif self.action in ['update', 'partial_update', 'destroy']:
             # Only allow Admins/Superusers for now - needs proper implementation
             permission_classes_list = [permissions.IsAdminUser] 
         else:
@@ -615,6 +618,24 @@ class SpecialistViewSet(viewsets.ModelViewSet):
         return queryset
 
     # Create, Update, Delete actions are restricted by get_permissions for now
+    def perform_create(self, serializer):
+        """Ensure specialist is created under the requesting specialist's university."""
+        try:
+            uni_code, role_type, role_id = get_role_or_403(self.request)
+        except PermissionDenied as e:
+            raise serializers.ValidationError({"detail": str(e)}) from e
+
+        # Double-check role type although permission class should handle it
+        if role_type != 'specialist':
+            raise PermissionDenied("Only Specialists can create other specialists.")
+
+        try:
+            university = University.objects.get(code__iexact=uni_code)
+        except University.DoesNotExist:
+            raise serializers.ValidationError(f"Requesting Specialist's university '{uni_code}' not found.")
+        
+        # Associate the new specialist with the same university
+        serializer.save(university=university)
 
 
 # --- Reservation ViewSet ---

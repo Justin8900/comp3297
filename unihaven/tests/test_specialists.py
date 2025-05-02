@@ -41,3 +41,27 @@ class SpecialistTests(APITestCase):
         self.assertEqual(response.data['id'], self.cu_specialist2.id)
         self.assertEqual(response.data['name'], self.cu_specialist2.name)
         self.assertEqual(response.data['university'], self.cu_specialist2.university.code)
+
+    def test_create_specialist_by_specialist(self):
+        """Test creating a new specialist by an existing specialist."""
+        url = f"/specialists/?role=cu:specialist:{self.cu_specialist1.id}"
+        data = {
+            "name": "New CU Specialist",
+            "email": "new.cu.spec@cu.hk", # Assuming email/phone are needed or handled by serializer
+            "phone": "11223344"
+        }
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['name'], "New CU Specialist")
+        self.assertEqual(response.data['university'], self.cu.code) # Should match creator's uni
+
+        # Verify the specialist exists in the database and belongs to CU
+        new_spec_exists = Specialist.objects.filter(
+            name="New CU Specialist",
+            university=self.cu
+        ).exists()
+        self.assertTrue(new_spec_exists)
+
+        # Verify the count for CU specialists increased
+        cu_specialist_count = Specialist.objects.filter(university=self.cu).count()
+        self.assertEqual(cu_specialist_count, 3) # Started with 2 CU specialists

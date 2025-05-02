@@ -25,38 +25,37 @@ info:
     \ via custom permission classes and logic within the viewsets. Standard DRF authentication\
     \ (SessionAuthentication, BasicAuthentication) is assumed.\n\n### Permission Rules\
     \ Summary (Updated):\n\n1.  **Property Owners (`/property-owners/`)**: Only Specialists\
-    \ (`uni_code:specialist[:id]`) can perform List, Create, Retrieve, Update, Delete.\
-    \ (Now includes `email` field).\n2.  **Accommodations (`/accommodations/`)**:\n\
-    \    - List/Retrieve: Any Member (`uni_code:member:uid`) or Specialist (`uni_code:specialist[:id]`).\
-    \ View filters by university.\n    - Create/Update/Delete: Only Specialists (`uni_code:specialist[:id]`)\
-    \ whose university is linked to the accommodation. (Now includes `building_name`\
-    \ field).\n3.  **Members (`/members/`)**:\n    - List/Create/Delete: Only Specialists\
-    \ (`uni_code:specialist[:id]`) from the target university.\n    - Retrieve/Update:\
-    \ Specialists (`uni_code:specialist[:id]`) from the same university OR the specific\
-    \ Member themselves (`uni_code:member:<uid>`). (Now uses `phone_number` and `email`\
-    \ instead of `contact`).\n    - List Reservations (`/members/{uid}/reservations/`):\
-    \ Specialists (`uni_code:specialist[:id]`) from the same university OR the specific\
-    \ Member themselves (`uni_code:member:<uid>`).\n4.  **Specialists (`/specialists/`)**:\
-    \ \n    - List/Retrieve: Only Specialists (`uni_code:specialist[:id]`) from the\
-    \ same university.\n    - Create/Update/Delete: Restricted (likely Admin/Superuser\
-    \ only).\n5.  **Reservations (`/reservations/`)**:\n    - List (`GET /reservations/`):\
-    \ Members (`uni_code:member:uid`) see their own; Specialists (`uni_code:specialist[:id]`)\
-    \ see their university's.\n    - Create (`POST /reservations/`): Members (`uni_code:member:uid`)\
-    \ for self; Specialists (`uni_code:specialist[:id]`) for members in their university\
-    \ (requires `member_uid` in body).\n    - Retrieve/Update (`GET/PUT/PATCH /reservations/{id}/`):\
-    \ Member owner (`uni_code:member:uid`) or Specialist (`uni_code:specialist[:id]`)\
-    \ from the reservation's university.\n    - **Cancel**: Use `PATCH /reservations/{id}/`\
+    \ (`uni_code:specialist[:id]`) can perform List, Create, Retrieve, Update, Delete.\n\
+    2.  **Accommodations (`/accommodations/`)**:\n    - List/Retrieve: Any Member\
+    \ (`uni_code:member:uid`) or Specialist (`uni_code:specialist[:id]`). View filters\
+    \ by university.\n    - Create/Update/Delete: Only Specialists (`uni_code:specialist[:id]`)\
+    \ whose university is linked to the accommodation.\n3.  **Members (`/members/`)**:\n\
+    \    - List/Create/Delete: Only Specialists (`uni_code:specialist[:id]`) from\
+    \ the target university.\n    - Retrieve/Update: Specialists (`uni_code:specialist[:id]`)\
+    \ from the same university OR the specific Member themselves (`uni_code:member:<uid>`).\n\
+    \    - List Reservations (`/members/{uid}/reservations/`): Specialists (`uni_code:specialist[:id]`)\
+    \ from the same university OR the specific Member themselves (`uni_code:member:<uid>`).\n\
+    4.  **Specialists (`/specialists/`)**: \n    - List/Retrieve: Only Specialists\
+    \ (`uni_code:specialist[:id]`) from the same university.\n    - Create/Update/Delete:\
+    \ Restricted (likely Admin/Superuser only).\n5.  **Reservations (`/reservations/`)**:\n\
+    \    - List (`GET /reservations/`): Members (`uni_code:member:uid`) see their\
+    \ own; Specialists (`uni_code:specialist[:id]`) see their university's.\n    -\
+    \ Create (`POST /reservations/`): Members (`uni_code:member:uid`) for self; Specialists\
+    \ (`uni_code:specialist[:id]`) for members in their university (requires `member_uid`\
+    \ in body).\n    - Retrieve/Update (`GET/PUT/PATCH /reservations/{id}/`): Member\
+    \ owner (`uni_code:member:uid`) or Specialist (`uni_code:specialist[:id]`) from\
+    \ the reservation's university.\n    - **Cancel**: Use `PATCH /reservations/{id}/`\
     \ with `{\"status\": \"cancelled\"}`. Member owner can only cancel `pending` reservations.\
     \ Specialist can cancel any (non-final) reservation in their university.\n   \
     \ - **Confirm**: Use `PATCH /reservations/{id}/` with `{\"status\": \"confirmed\"\
-    }` (Specialists only).\n    - Delete (`DELETE /reservations/{id}/`): **Disallowed**\
+    }` (Specialists only).\n    - Delete (`DELETE /reservations/{id}/`): Disallowed\
     \ (Returns 405 Method Not Allowed).\n6.  **Ratings (`/ratings/`)**:\n    - List\
-    \ (`GET /ratings/`): **Any Member or Specialist** (`uni_code:member:uid` or `uni_code:specialist[:id]`)\
-    \ **can list all ratings within their university**. Can be filtered by `accommodation_id`.\n\
+    \ (`GET /ratings/`): Any Member or Specialist (`uni_code:member:uid` or `uni_code:specialist[:id]`)\
+    \ can list all ratings within their university. Can be filtered by `accommodation_id`.\n\
     \    - Create (`POST /ratings/`): Only Members (`uni_code:member:uid`) for their\
-    \ own completed reservations.\n    - Retrieve (`GET /ratings/{id}/`): **Any Member\
-    \ or Specialist** (`uni_code:member:uid` or `uni_code:specialist[:id]`) **can\
-    \ retrieve any rating within their university**.\n    - Delete (`DELETE /ratings/{id}/`):\
+    \ own completed reservations.\n    - Retrieve (`GET /ratings/{id}/`): Any Member\
+    \ or Specialist (`uni_code:member:uid` or `uni_code:specialist[:id]`) can retrieve\
+    \ any rating within their university.\n    - Delete (`DELETE /ratings/{id}/`):\
     \ Specialist from the rating's university.\n    - Update: Restricted.\n\nIf you\
     \ attempt to access an endpoint without the required role or permission, you should\
     \ receive a 403 Forbidden or 400 Bad Request error with an appropriate error message.\n\
@@ -1159,6 +1158,39 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedSpecialistList'
           description: ''
+    post:
+      operationId: specialists_create
+      description: Create a new specialist within the requesting specialist's university.
+        Requires Specialist role.
+      summary: Create specialist (Specialists Only)
+      parameters:
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: 'User role (format: ''uni_code:specialist[:id]'')'
+        required: true
+      tags:
+      - specialists
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpecialistRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SpecialistRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SpecialistRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Specialist'
+          description: ''
   /specialists/{id}/:
     get:
       operationId: specialists_retrieve
@@ -1981,6 +2013,16 @@ components:
       - id
       - name
       - university
+    SpecialistRequest:
+      type: object
+      description: Serializer for the unified Specialist model.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+      required:
+      - name
 tags:
 - name: accommodations
   description: Operations related to student accommodations
