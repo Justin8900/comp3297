@@ -205,23 +205,22 @@ GET /members/hku:u1234567/reservations/?role=hku:member:u1234567 # Requires matc
 
 ### Resource-Oriented Design & Actions
 
-The API generally follows a resource-oriented design. Specific actions often use dedicated sub-paths:
+The API generally follows a resource-oriented design. Specific actions often use dedicated sub-paths or HTTP methods:
 - Creating a reservation: Use `POST /reservations/` (logic handled in view)
-- Canceling a reservation: Use `POST /reservations/{id}/cancel/`
-- Confirming a reservation: Use `POST /reservations/{id}/confirm/`
+- **Updating/Canceling/Confirming a reservation**: Use `PATCH /reservations/{id}/` with appropriate status in the body (e.g., `{"status": "confirmed"}`, `{"status": "cancelled"}`). Cancellation sets `cancelled_by` automatically.
 - Rating an accommodation: Use `POST /ratings/` (logic handled in view)
 
 **Note on Authentication/Permissions:** Role checks are implemented via custom permission classes and logic within the viewsets. Standard DRF authentication (SessionAuthentication, BasicAuthentication) is assumed.
 
-### Permission Rules Summary (Simplified):
+### Permission Rules Summary (Updated):
 
-1.  **Property Owners (`/property-owners/`)**: Only Specialists (`uni_code:specialist[:id]`) can perform List, Create, Retrieve, Update, Delete.
+1.  **Property Owners (`/property-owners/`)**: Only Specialists (`uni_code:specialist[:id]`) can perform List, Create, Retrieve, Update, Delete. (Now includes `email` field).
 2.  **Accommodations (`/accommodations/`)**:
     - List/Retrieve: Any Member (`uni_code:member:uid`) or Specialist (`uni_code:specialist[:id]`). View filters by university.
-    - Create/Update/Delete: Only Specialists (`uni_code:specialist[:id]`) whose university is linked to the accommodation.
+    - Create/Update/Delete: Only Specialists (`uni_code:specialist[:id]`) whose university is linked to the accommodation. (Now includes `building_name` field).
 3.  **Members (`/members/`)**:
     - List/Create/Delete: Only Specialists (`uni_code:specialist[:id]`) from the target university.
-    - Retrieve/Update: Specialists (`uni_code:specialist[:id]`) from the same university OR the specific Member themselves (`uni_code:member:<uid>`).
+    - Retrieve/Update: Specialists (`uni_code:specialist[:id]`) from the same university OR the specific Member themselves (`uni_code:member:<uid>`). (Now uses `phone_number` and `email` instead of `contact`).
     - List Reservations (`/members/{uid}/reservations/`): Specialists (`uni_code:specialist[:id]`) from the same university OR the specific Member themselves (`uni_code:member:<uid>`).
 4.  **Specialists (`/specialists/`)**: 
     - List/Retrieve: Only Specialists (`uni_code:specialist[:id]`) from the same university.
@@ -230,13 +229,13 @@ The API generally follows a resource-oriented design. Specific actions often use
     - List (`GET /reservations/`): Members (`uni_code:member:uid`) see their own; Specialists (`uni_code:specialist[:id]`) see their university's.
     - Create (`POST /reservations/`): Members (`uni_code:member:uid`) for self; Specialists (`uni_code:specialist[:id]`) for members in their university (requires `member_uid` in body).
     - Retrieve/Update (`GET/PUT/PATCH /reservations/{id}/`): Member owner (`uni_code:member:uid`) or Specialist (`uni_code:specialist[:id]`) from the reservation's university.
-    - Cancel (`POST /reservations/{id}/cancel/`): Member owner or Specialist from the reservation's university.
-    - Confirm (`POST /reservations/{id}/confirm/`): Specialist from the reservation's university.
-    - Delete (`DELETE /reservations/{id}/`): Specialist from the reservation's university.
+    - **Cancel**: Use `PATCH /reservations/{id}/` with `{"status": "cancelled"}`. Member owner can only cancel `pending` reservations. Specialist can cancel any (non-final) reservation in their university.
+    - **Confirm**: Use `PATCH /reservations/{id}/` with `{"status": "confirmed"}` (Specialists only).
+    - Delete (`DELETE /reservations/{id}/`): **Disallowed** (Returns 405 Method Not Allowed).
 6.  **Ratings (`/ratings/`)**:
-    - List (`GET /ratings/`): Members (`uni_code:member:uid`) see their own; Specialists (`uni_code:specialist[:id]`) see their university's.
+    - List (`GET /ratings/`): **Any Member or Specialist** (`uni_code:member:uid` or `uni_code:specialist[:id]`) **can list all ratings within their university**. Can be filtered by `accommodation_id`.
     - Create (`POST /ratings/`): Only Members (`uni_code:member:uid`) for their own completed reservations.
-    - Retrieve (`GET /ratings/{id}/`): Member owner or Specialist from the rating's university.
+    - Retrieve (`GET /ratings/{id}/`): **Any Member or Specialist** (`uni_code:member:uid` or `uni_code:specialist[:id]`) **can retrieve any rating within their university**.
     - Delete (`DELETE /ratings/{id}/`): Specialist from the rating's university.
     - Update: Restricted.
 

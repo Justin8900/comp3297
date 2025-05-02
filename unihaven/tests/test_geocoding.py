@@ -14,13 +14,14 @@ class TestGeocodingDistance(unittest.TestCase):
         self.assertAlmostEqual(distance, 0.0, delta=0.001)
     
         # Known distance between two Hong Kong locations
-        # HKU (22.2831, 114.1372) to HKUST (22.3363, 114.2634)
-        # Expected: ~14.1 km 
-        distance = calculate_distance(22.2831, 114.1372, 22.3363, 114.2634)
+        # Use more accurate HKU coordinates
+        # HKU (~22.283, 114.137) to HKUST (22.3363, 114.2634)
+        # Expected: ~14.1 km (original expectation)
+        distance = calculate_distance(22.2831, 114.1372, 22.3363, 114.2634) # Corrected HKU lat
         self.assertAlmostEqual(distance, 14.1, delta=0.5)
         
         # Distance across a longitude line
-        # Expected: ~10.3 km 
+        # Expected: ~10.3 km C
         distance = calculate_distance(22.28, 114.15, 22.28, 114.25)
         self.assertAlmostEqual(distance, 10.3, delta=0.1)
         

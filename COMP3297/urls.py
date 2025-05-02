@@ -21,6 +21,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, Sp
 urlpatterns = [
     # path('admin/', admin.site.urls), # Commented out for demo API
     path('api-auth/', include('rest_framework.urls')),
+    # Keep UniHaven API endpoints at the root path
     path('', include('unihaven.urls')),
     # path('docs/', include_docs_urls(title='UniHaven API')),
     # Schema endpoints

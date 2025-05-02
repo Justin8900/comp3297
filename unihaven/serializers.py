@@ -22,7 +22,7 @@ class PropertyOwnerSerializer(serializers.ModelSerializer):
     """Serializer for the PropertyOwner model."""
     class Meta:
         model = PropertyOwner
-        fields = ['id', 'name', 'phone_no']
+        fields = ['id', 'name', 'phone_no', 'email']
         # Consider if owner endpoint allows creation/update or is managed elsewhere
 
 # --- Generalized Member & Specialist Serializers ---
@@ -33,7 +33,7 @@ class MemberSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Member # Point to the concrete Member model
-        fields = ['uid', 'name', 'university', 'contact']
+        fields = ['uid', 'name', 'university', 'phone_number', 'email']
         # Allow UID to be provided during creation
         read_only_fields = ['university'] # University is set by perform_create
 
@@ -72,6 +72,7 @@ class AccommodationSerializer(serializers.ModelSerializer):
     )
 
     # Add new address fields
+    building_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
     geo_address = serializers.CharField(read_only=True, required=False)
     latitude = serializers.FloatField(read_only=True, required=False)
     longitude = serializers.FloatField(read_only=True, required=False)
@@ -96,6 +97,7 @@ class AccommodationSerializer(serializers.ModelSerializer):
             'id', 'type',
             # Address components
             'address',
+            'building_name',
             'room_number', 'flat_number', 'floor_number',
             # Geocoding related
             'latitude', 'longitude', 'geo_address',
@@ -188,11 +190,18 @@ class ReservationSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'status', 'start_date', 'end_date', 'cancelled_by', 
             'university', 'member', 'accommodation_details', 'rating', 
-            'accommodation', 'member_uid' 
+            'accommodation', 'member_uid' # write-only creation fields
         ]
-        # Make status read-only here; updates handled in view
-        read_only_fields = ['id', 'status', 'cancelled_by', 'university', 'member', 'accommodation_details', 'rating']
-        # Note: status might be updatable by specialists via PUT/PATCH actions in the view
+        # Allow status and cancelled_by to be updated via PUT/PATCH.
+        # Keep other related fields read-only for display.
+        read_only_fields = [
+            'id', 
+            'university', 
+            'member', # Display only, set via perform_create
+            'accommodation_details', 
+            'rating'
+        ]
+        # Note: member_uid and accommodation are write_only for creation
 
     def validate(self, data):
         """Validate dates and check for overlaps."""

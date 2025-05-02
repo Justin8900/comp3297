@@ -40,10 +40,12 @@ class PropertyOwner(models.Model):
         user (User): The Django User associated with this property owner
         name (str): The name of the property owner
         phone_no (str): Phone number of the property owner
+        email (str): Email address of the property owner (optional)
     """
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
     name = models.CharField(max_length=255)
     phone_no = models.CharField(max_length=255)
+    email = models.EmailField(max_length=254, blank=True, null=True) # Add optional email field
 
     def __str__(self):
         """
@@ -130,30 +132,50 @@ class Accommodation(models.Model):
         addr_parts = [self.floor_number, self.flat_number]
         if self.room_number:
             addr_parts.insert(0, self.room_number)
-        return f"{', '.join(addr_parts)} - {self.geo_address}"
+        return f"{', '.join(addr_parts)} - {self.building_name}"
 
     def update_geocoding(self):
         """
         Updates the geocoding information (latitude, longitude, geo_address) for this accommodation
-        by calling the geocoding API with the current address components.
-        
+        by calling the geocoding API. Prioritizes building_name, then falls back to address.
+
         Returns:
             bool: True if geocoding was successful, False otherwise
         """
         from unihaven.utils.geocoding import geocode_address
-        
-        # Construct address from detailed fields including building_name
-        full_address = f"{self.room_number or ''} {self.flat_number} {self.floor_number} {self.building_name}".strip()
 
-        lat, lng, geo = geocode_address(full_address)
-        
+        address_to_geocode = None
+        source_field = None
+
+        # Prioritize building_name
+        if self.building_name and self.building_name.strip():
+            address_to_geocode = self.building_name.strip()
+            source_field = 'building_name'
+        # Fallback to address field
+        elif self.address and self.address.strip():
+            address_to_geocode = self.address.strip()
+            source_field = 'address'
+
+        # If neither field provides usable input, skip geocoding
+        if not address_to_geocode:
+            logger.warning(f"Skipping geocoding for Acc ID {self.id}: Both building_name and address are empty.")
+            return False
+
+        logger.debug(f"Geocoding Acc ID {self.id} using field '{source_field}': '{address_to_geocode}'")
+
+        lat, lng, geo = geocode_address(address_to_geocode)
+
         if lat is not None and lng is not None and geo is not None:
             self.latitude = lat
             self.longitude = lng
             self.geo_address = geo
-            self.save()
+            self.save(update_fields=['latitude', 'longitude', 'geo_address'])
+            logger.info(f"Successfully geocoded Acc ID {self.id} using {source_field}.")
             return True
-        return False
+        else:
+            logger.warning(f"Geocoding failed for Acc ID {self.id} using {source_field}: '{address_to_geocode}'")
+            # Optionally clear fields on failure
+            return False
     
     @property
     def average_rating(self):
@@ -181,7 +203,9 @@ class Member(models.Model):
     uid = models.CharField(max_length=255, primary_key=True)
     name = models.CharField(max_length=255)
     university = models.ForeignKey(University, on_delete=models.CASCADE, related_name="members") # related_name is OK here
-    contact = models.CharField(max_length=50, blank=True, null=True)
+    # Replace generic contact with specific fields
+    phone_number = models.CharField(max_length=20, blank=True, null=True) # Adjust max_length as needed
+    email = models.EmailField(max_length=254, blank=True, null=True) # Standard max length for emails
 
     # Add methods directly here if they are common
     # e.g., searchAccommodation, reserveAccommodation, etc.

@@ -172,42 +172,46 @@ class AccommodationBaseTestCase(APITestCase):
         cls.hku_specialist = Specialist.objects.create(name='Acc Spec HKU', university=cls.hku)
         cls.cu_specialist = Specialist.objects.create(name='Acc Spec CU', university=cls.cu)
 
-        # Create Accommodations
+        # Create Accommodations with building_name
         cls.acc1_hku = Accommodation.objects.create(
             type='studio', address='2 Sassoon Road, Pok Fu Lam', owner=cls.owner,
+            building_name='Sassoon Hall',
             flat_number='S1A', floor_number='1SA',
             available_from='2025-01-01', available_until='2025-12-31',
             beds=1, bedrooms=1, daily_price='110.00'
-            )
+        )
         cls.acc1_hku.available_at_universities.add(cls.hku)
-        cls.acc1_hku.update_geocoding() # Call geocoding after creation
+        cls.acc1_hku.update_geocoding()
 
         cls.acc2_cu = Accommodation.objects.create(
             type='apartment', address='18 Taipo Road, Ma Liu Shui', owner=cls.owner,
+            building_name='CUHK Building Z',
             flat_number='A2A', floor_number='2AA',
             available_from='2025-01-01', available_until='2025-12-31',
             beds=2, bedrooms=1, daily_price='190.00'
-            )
+        )
         cls.acc2_cu.available_at_universities.add(cls.cu)
-        cls.acc2_cu.update_geocoding() # Call geocoding after creation
+        cls.acc2_cu.update_geocoding()
 
         cls.acc3_hku_cu = Accommodation.objects.create(
             type='shared', address='3 Garden Road, Central', owner=cls.owner,
+            building_name='Central Tower',
             flat_number='SH3A', floor_number='3SA',
             available_from='2025-01-01', available_until='2025-12-31',
             beds=3, bedrooms=2, daily_price='170.00'
-            )
+        )
         cls.acc3_hku_cu.available_at_universities.add(cls.hku, cls.cu)
-        cls.acc3_hku_cu.update_geocoding() # Call geocoding after creation
+        cls.acc3_hku_cu.update_geocoding()
 
         cls.acc4_all = Accommodation.objects.create(
             type='house', address='7 Repulse Bay Road, Repulse Bay', owner=cls.owner,
+            building_name='Bayview House',
             flat_number='H4A', floor_number='4HA',
             available_from='2025-01-01', available_until='2025-12-31',
             beds=4, bedrooms=3, daily_price='250.00'
-            )
+        )
         cls.acc4_all.available_at_universities.add(cls.hku, cls.cu, cls.hkust)
-        cls.acc4_all.update_geocoding() # Call geocoding after creation
+        cls.acc4_all.update_geocoding()
 
     def _get_list_url(self, role_str):
         # Assumes router basename 'accommodation'
@@ -314,50 +318,58 @@ class AccommodationDetailPermissionsTests(AccommodationBaseTestCase):
 
 class AccommodationEndpointTests(AccommodationBaseTestCase):
 
-    def test_create_accommodation(self):
-        """Verify CU specialist can create accommodations."""
-        role = f"cu:specialist:{self.cu_specialist.id}"
-        url = self._get_list_url(role)
+    @patch('unihaven.utils.geocoding.geocode_address')
+    def test_create_accommodation(self, mock_geocode):
+        """Test creating a new accommodation, including building_name."""
+        mock_geocode.return_value = (1.0, 1.0, 'Mocked Geo Address for Create')
+        role = f"hku:specialist:{self.hku_specialist.id}"
+        url = reverse('accommodation-list') + f"?role={role}"
         data = {
-            'type': 'apartment',
-            'address': '123 Test',
-            'room_number': '12A',
-            'flat_number': '23',
-            'floor_number': '3',
-            'available_from': '2025-04-28',
-            'available_until': '2025-05-28',
-            'beds': 3,
-            'bedrooms': 2,
-            'daily_price': '250', 
-            'owner_id': self.owner.id,  
-            'available_at_universities': ["CU"]  
+            "type": "house",
+            "address": "10 University Path",
+            "building_name": "New House",
+            "flat_number": "Unit 1",
+            "floor_number": "G/F",
+            "available_from": "2026-01-01",
+            "available_until": "2026-12-31",
+            "beds": 3,
+            "bedrooms": 2,
+            "daily_price": "200.00",
+            "owner_id": self.owner.id,
+            "available_at_universities": ["HKU"]
         }
         response = self.client.post(url, data, format='json')
-        # print(response.data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data['building_name'], "New House")
+        self.assertEqual(response.data['geo_address'], 'Mocked Geo Address for Create')
+
     def test_update_accommodation(self):
-        role = f"cu:specialist:{self.cu_specialist.id}"
-        url = self._get_detail_url(role, self.acc4_all.id)
+        """Test updating an accommodation, including building_name."""
+        role = f"hku:specialist:{self.hku_specialist.id}"
+        url = self._get_detail_url(role, self.acc1_hku.id)
         data = {
-            'type': 'apartment',
-            'address': '123 Update',
-            'room_number': '12A',
-            'flat_number': '23',
-            'floor_number': '3',
-            'available_from': '2025-04-28',
-            'available_until': '2025-05-28',
-            'beds': 3,
-            'bedrooms': 2,
-            'daily_price': '250', 
-            'owner_id': self.owner.id,  
-            'available_at_universities': ["CU"]  
-        }  
+            "type": "studio",
+            "address": "2 Sassoon Road, Pok Fu Lam",
+            "building_name": "Sassoon Hall - Updated",
+            "flat_number": "S1A",
+            "floor_number": "1SA",
+            "available_from": "2025-01-01",
+            "available_until": "2025-12-31",
+            "beds": 1,
+            "bedrooms": 1,
+            "daily_price": "115.00",
+            "owner_id": self.owner.id,
+            "available_at_universities": ["HKU"]
+        }
         response = self.client.put(url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data['building_name'], "Sassoon Hall - Updated")
+        self.assertEqual(response.data['daily_price'], "115.00")
 
     def test_delete_accommodation(self):
-        role = f"cu:specialist:{self.cu_specialist.id}"
-        url = self._get_detail_url(role, self.acc4_all.id)
+        """Test deleting an accommodation."""
+        role = f"hku:specialist:{self.hku_specialist.id}"
+        url = self._get_detail_url(role, self.acc1_hku.id)
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Accommodation.objects.filter(id=self.acc1_hku.id).exists())

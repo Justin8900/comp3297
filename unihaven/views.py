@@ -619,7 +619,6 @@ class SpecialistViewSet(viewsets.ModelViewSet):
 
 # --- Reservation ViewSet ---
 @extend_schema_view(
-    # Update descriptions and parameters
     list=extend_schema(
         summary="List reservations (Members see own, Specialists see their Uni's)",
         description="List reservations based on role. Members see their own. Specialists see all reservations within their university.",
@@ -627,13 +626,13 @@ class SpecialistViewSet(viewsets.ModelViewSet):
             OpenApiParameter(name="role", description="User role (format: 'uni_code:member:uid' or 'uni_code:specialist[:id]')", required=True, type=str),
             OpenApiParameter(name="member_id", description="Filter by member UID (Specialists only)", required=False, type=str),
             OpenApiParameter(name="accommodation_id", description="Filter by accommodation ID", required=False, type=int),
-            OpenApiParameter(name="status", description="Filter by status", required=False, type=str, enum=["pending", "confirmed", "cancelled", "completed"])
+            OpenApiParameter(name="status", description="Filter by status", required=False, type=str, enum=["pending", "confirmed", "cancelled", "completed"]),
         ]
     ),
-    create=extend_schema( # Use standard create now with permissions
+    create=extend_schema( 
         summary="Create a new reservation",
-        description="Create a new reservation. Members reserve for self. Specialists can reserve for members within their university (must provide member_id in request body).",
-        request=ReservationSerializer, # Use standard serializer
+        description="Create a new reservation. Members reserve for self. Specialists can reserve for members within their university (must provide member_id in request body). Defaults to 'pending' status.",
+        request=ReservationSerializer,
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:member:uid' or 'uni_code:specialist[:id]')", required=True, type=str)],
         responses={201: ReservationSerializer}
     ),
@@ -642,21 +641,22 @@ class SpecialistViewSet(viewsets.ModelViewSet):
         description="Retrieve details of a specific reservation. Members can retrieve their own. Specialists can retrieve any reservation within their university.",
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:member:uid' or 'uni_code:specialist[:id]')", required=True, type=str)]
     ),
-    update=extend_schema( # Allow PUT for specialists
+    update=extend_schema( 
         summary="Update reservation (Specialists Only)",
-        description="Update a reservation (e.g., change status). Requires Specialist role from the reservation's university.",
+        description="Update a reservation (e.g., change status). Requires Specialist role from the reservation's university. Use PATCH for status changes like confirm/complete/cancel.",
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)]
     ),
-    partial_update=extend_schema( # Allow PATCH for specialists
-        summary="Partially update reservation (Specialists Only)",
-        description="Partially update a reservation. Requires Specialist role from the reservation's university.",
-        parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)]
+    partial_update=extend_schema(
+        summary="Partially update/cancel reservation (Member/Specialist)",
+        description='Partially update a reservation. Members can use this to cancel their *pending* reservations (`{"status": "cancelled"}`). Specialists can use it to update status (e.g., `confirmed`, `cancelled`). Requires appropriate role from the reservation\'s university.',
+        parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:member:uid' or 'uni_code:specialist[:id]')", required=True, type=str)]
     ),
-    destroy=extend_schema( # Allow DELETE for specialists
-        summary="Delete reservation (Specialists Only)",
-        description="Delete a reservation. Requires Specialist role from the reservation's university.",
-        parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)]
-    )
+    destroy=extend_schema( 
+        summary="Delete reservation (Disallowed)",
+        description="Direct deletion of reservations via DELETE is disallowed. Use PATCH with status 'cancelled' to cancel.",
+        parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)],
+        exclude=True # Exclude from schema
+    ),
 )
 class ReservationViewSet(viewsets.ModelViewSet):
     """
@@ -670,11 +670,15 @@ class ReservationViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'create']:
             # Members (for self) or Specialists (for their uni)
             permission_classes_list = [CanListCreateReservations] 
-        elif self.action in ['retrieve', 'update', 'partial_update', 'destroy', 'cancel', 'confirm']: # Added custom actions
+        elif self.action in ['retrieve', 'update', 'partial_update']: # Removed 'destroy' and custom actions
             # Member owner or Specialist from the reservation's uni
             permission_classes_list = [CanAccessReservationObject] 
+        elif self.action == 'destroy': # Explicitly handle destroy
+            # Disallow destroy for normal users, or assign specific admin permission
+             permission_classes_list = [permissions.IsAdminUser] # Example: Only Admins can truly delete
+            # Alternatively: permission_classes = [] to rely on the 405 from the overridden method
         else:
-            # Replace DenyAll with empty list
+            # Default deny for any other custom actions not defined
             permission_classes_list = []
         return [permission() for permission in permission_classes_list]
 
@@ -724,17 +728,30 @@ class ReservationViewSet(viewsets.ModelViewSet):
         if role_type == 'member':
             member_uid_to_reserve = role_id # Member reserves for self
         elif role_type == 'specialist':
-            member_uid_to_reserve = serializer.validated_data.get('member_id', None) 
+            member_uid_to_reserve = serializer.validated_data.get('member_uid', None) 
             if not member_uid_to_reserve:
-                 raise serializers.ValidationError("Specialists must provide 'member_id' in the request body to create a reservation.")
+                 raise serializers.ValidationError("Specialists must provide 'member_uid' in the request body to create a reservation.")
         else:
              raise PermissionDenied("Invalid role type for creating reservation.") # Should be caught by permissions
 
+        # Remove member_uid from validated_data as it's not a model field
+        # We already used it to find the member object
+        serializer.validated_data.pop('member_uid', None)
+
         # Find the member using the concrete Member model
         try:
-             member = Member.objects.get(uid=member_uid_to_reserve, university__code__iexact=uni_code)
+            if role_type == 'specialist':
+                 # Specialist lookup: Find member by UID only, uni check happens later
+                 member = Member.objects.get(uid=member_uid_to_reserve)
+            else: # role_type == 'member'
+                 # Member lookup: Ensure member exists and belongs to the role's university
+                 member = Member.objects.get(uid=member_uid_to_reserve, university__code__iexact=uni_code)
         except Member.DoesNotExist:
-             raise serializers.ValidationError(f"Member with UID '{member_uid_to_reserve}' not found or does not belong to university '{uni_code}'.")
+             if role_type == 'specialist':
+                 # Updated error message for specialist scenario
+                 raise serializers.ValidationError(f"Member with UID '{member_uid_to_reserve}' not found.")
+             else:
+                 raise serializers.ValidationError(f"Member with UID '{member_uid_to_reserve}' not found or does not belong to university '{uni_code}'.")
 
         # Get accommodation (serializer validation should ensure it exists)
         accommodation = serializer.validated_data['accommodation']
@@ -756,7 +773,6 @@ class ReservationViewSet(viewsets.ModelViewSet):
              raise serializers.ValidationError("Accommodation is not available for the selected dates due to an overlapping reservation.")
 
         # Save with the correct member and university
-        # The model's save method should handle setting university from member if needed
         serializer.save(member=member, university=member.university) 
         # post_save signal in models.py handles notification
 
@@ -764,34 +780,85 @@ class ReservationViewSet(viewsets.ModelViewSet):
         instance = serializer.instance # Get the created instance
         subject = f"New Pending Reservation at {instance.university.code}: #{instance.id}"
         message_template = f"""
-A new reservation requires confirmation:
-
-Reservation ID: {{id}}
-Member: {{member_name}} ({{member_uid}})
-Accommodation: {{accommodation}}
-Check-in: {{start_date}}
-Check-out: {{end_date}}
-Status: {{status}}
-
-Please review and confirm or cancel this reservation.
-
-Regards,
-The UniHaven Team
+        A new reservation requires confirmation:
+        
+        Reservation ID: {{id}}
+        Member: {{member_name}} ({{member_uid}})
+        Accommodation: {{accommodation}}
+        Check-in: {{start_date}}
+        Check-out: {{end_date}}
+        Status: {{status}}
+        
+        Please review and confirm or cancel this reservation.
+        
+        Regards,
+        The UniHaven Team
         """
         send_reservation_notification(instance, subject, message_template)
         # --- End Notification --- 
 
     def perform_destroy(self, instance):
-        """Handle notifications before deleting/cancelling."""
+        # This method is kept but will be blocked by the destroy method override
+        # Original notification logic can be moved or adapted for updates
+        logger.warning(f"Attempted DELETE on Reservation {instance.id}, which is now disallowed. Cancellation handled via PATCH/PUT.")
+        # Keep notification logic here for reference or potential reuse if needed elsewhere
         try:
             uni_code, role_type, role_id = get_role_or_403(self.request)
             cancelling_user_type = role_type # member or specialist
         except PermissionDenied:
             cancelling_user_type = 'system' # Or handle error appropriately
         
-        logger.info(f"Performing destroy for Reservation {instance.id}, cancelled by {cancelling_user_type}")
+        # --- Reference Notification Logic (moved to perform_update) ---
+        # subject_spec = f"Reservation Cancelled at {instance.university.code}: #{instance.id}"
+        # message_spec = f"""..."""
+        # send_reservation_notification(instance, subject_spec, message_spec)
+        # if cancelling_user_type != 'member':
+        #     if hasattr(instance, 'member') and instance.member:
+        #         send_member_cancellation_notification(instance)
+        # --- End Reference --- 
 
-        # --- Send Notifications Before Deletion --- 
+        # Instead of calling cancel or delete, we prevent the action
+        # instance.cancel(user_type=cancelling_user_type)
+        pass # Do nothing here, destroy override handles prevention
+
+    def destroy(self, request, *args, **kwargs):
+        # Override destroy action to explicitly disallow DELETE method
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    
+    # Add perform_update to handle status changes, including cancellation
+    def perform_update(self, serializer):
+        """Handle updates, specifically checking for cancellation status change."""
+        instance = serializer.instance
+        old_status = instance.status
+        new_status = serializer.validated_data.get('status', old_status)
+        cancelling_user_type = None # Initialize to ensure it exists
+
+        # Reject changes if already completed or cancelled
+        if old_status in ['completed', 'cancelled'] and old_status != new_status:
+             # Raise validation error associated with the 'status' field
+             raise serializers.ValidationError({
+                 'status': f"cannot change status from '{old_status}'."
+             })
+
+        # Cancellation Logic (only applies if old_status wasn't completed/cancelled)
+        if new_status == 'cancelled' and old_status != 'cancelled':
+            logger.info(f"Reservation {instance.id} status changing to 'cancelled' via {self.request.method}.")
+            try:
+                uni_code, role_type, role_id = get_role_or_403(self.request)
+                cancelling_user_type = role_type
+            except PermissionDenied:
+                cancelling_user_type = 'unknown' 
+                logger.error(f"PermissionDenied when trying to cancel Reservation {instance.id} via {self.request.method}. Role info missing or invalid.")
+                raise serializers.ValidationError("Cannot determine user role for cancellation.")
+
+        # Member cancellation restriction
+        if cancelling_user_type == 'member' and old_status != 'pending':
+            raise serializers.ValidationError({"status": f"Members can only cancel reservations that are currently pending. Current status is '{old_status}'."})
+                
+        # Set cancelled_by and trigger notifications
+        serializer.validated_data['cancelled_by'] = cancelling_user_type
+        instance.cancelled_by = cancelling_user_type
+        # --- Trigger Cancellation Notifications --- 
         subject_spec = f"Reservation Cancelled at {instance.university.code}: #{instance.id}"
         message_spec = f"""
 The following reservation has been cancelled:
@@ -799,40 +866,37 @@ The following reservation has been cancelled:
 Reservation ID: {{id}}
 Accommodation: {{accommodation}}
 Member: {{member_name}} ({{member_uid}})
-Cancelled by: {cancelling_user_type} # Use role type from request
+Cancelled by: {cancelling_user_type}
 
 Regards,
 The UniHaven Team
         """
-        # Notify relevant specialists
-        send_reservation_notification(instance, subject_spec, message_spec)
+        # Ensure instance has relations loaded for notification context
+        try:
+             # Select related fields needed for notification template
+             instance_for_noti = Reservation.objects.select_related(
+                 'member', 'accommodation', 'university'
+             ).get(pk=instance.pk)
+             send_reservation_notification(instance_for_noti, subject_spec, message_spec)
 
-        # Notify member if cancelled by specialist/system
-        if cancelling_user_type != 'member':
-             # We need the full Member object to get email, instance.member should work
-             if hasattr(instance, 'member') and instance.member:
-                 send_member_cancellation_notification(instance)
-             else:
-                 logger.warning(f"Cannot send member cancellation email for Res {instance.id} - member data missing.")
-        # --- End Notifications --- 
+             if cancelling_user_type != 'member':
+                 if hasattr(instance_for_noti, 'member') and instance_for_noti.member:
+                     send_member_cancellation_notification(instance_for_noti)
+                 else:
+                     logger.warning(f"Cannot send member cancellation email for Res {instance.id} - member data missing.")
+        except Exception as e:
+            logger.error(f"Error sending cancellation notification for Res {instance.id}: {e}")
+        # --- End Notifications ---
 
-        # Now, proceed with the actual deletion/cancellation
-        # Option 1: Just delete (if that's the intended behaviour of DELETE)
-        # instance.delete() 
-        
-        # Option 2: Use the model's cancel method (sets status to cancelled)
-        instance.cancel(user_type=cancelling_user_type)
-
-    # Add other methods like perform_update if needed, applying permissions
-
+        # Proceed with the save operation for all valid updates
+        serializer.save()
 
 
 # --- Rating ViewSet ---
 @extend_schema_view(
-    # Update descriptions and parameters
     list=extend_schema(
-        summary="List ratings (Members see own, Specialists see their Uni's)",
-        description="List ratings based on role. Members see ratings for their reservations. Specialists see all ratings within their university.",
+        summary="List ratings (Public within University)",
+        description="List ratings associated with the user's university. Visible to all Members and Specialists of that university. Can be filtered by accommodation_id.",
         parameters=[
             OpenApiParameter(name="role", description="User role (format: 'uni_code:member:uid' or 'uni_code:specialist[:id]')", required=True, type=str),
             OpenApiParameter(name="reservation_id", description="Filter by reservation ID", required=False, type=int),
@@ -840,31 +904,31 @@ The UniHaven Team
             OpenApiParameter(name="member_id", description="Filter by member UID (Specialists only)", required=False, type=str)
         ]
     ),
-     create=extend_schema( # Use standard create with permissions
+     create=extend_schema( 
         summary="Create a new rating (Members Only)",
         description="Rate an accommodation for a completed reservation. Only the Member associated with the reservation can create a rating.",
-        request=RatingSerializer, # Use standard serializer
+        request=RatingSerializer,
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:member:uid')", required=True, type=str)],
         responses={201: RatingSerializer}
     ),
     retrieve=extend_schema(
-        summary="Retrieve a rating",
-        description="Retrieve details of a specific rating. Members can retrieve ratings for their own reservations. Specialists can retrieve any rating within their university.",
+        summary="Retrieve a rating (Public within University)",
+        description="Retrieve details of a specific rating. Visible to any Member or Specialist from the rating's associated university.",
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:member:uid' or 'uni_code:specialist[:id]')", required=True, type=str)]
     ),
-    update=extend_schema( # Allow update for specialists? Or disallow edits? Let's restrict for now.
+    update=extend_schema(
         summary="Update rating (Admin/Superusers Only - TBD)",
         description="Update a rating. Typically restricted.",
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)],
         exclude=True
     ),
-    partial_update=extend_schema( # Allow partial update for specialists? Or disallow edits? Let's restrict for now.
+    partial_update=extend_schema(
         summary="Partially update rating (Admin/Superusers Only - TBD)",
         description="Partially update a rating. Typically restricted.",
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)],
         exclude=True
     ),
-    destroy=extend_schema( # Allow specialists to delete ratings?
+    destroy=extend_schema( 
         summary="Delete rating (Specialists Only)",
         description="Delete a rating. Requires Specialist role from the rating's university.",
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)]
@@ -908,26 +972,37 @@ class RatingViewSet(viewsets.ModelViewSet):
         except PermissionDenied:
              return queryset.none()
 
-        if role_type == 'member':
-            # Members only see ratings for their own reservations
-            queryset = queryset.filter(reservation__member__uid=role_id, reservation__university__code__iexact=uni_code)
-        elif role_type == 'specialist':
-            # Specialists see all ratings for their university
-            queryset = queryset.filter(reservation__university__code__iexact=uni_code)
-            # Optional filtering for specialists
+        # Apply university filter for ALL valid roles (Member or Specialist)
+        queryset = queryset.filter(reservation__university__code__iexact=uni_code)
+
+        # Apply common query param filters (available to both roles)
+        accommodation_filter = self.request.query_params.get('accommodation_id')
+        reservation_filter = self.request.query_params.get('reservation_id')
+
+        if accommodation_filter:
+             try:
+                 queryset = queryset.filter(reservation__accommodation_id=int(accommodation_filter))
+             except ValueError:
+                 # Handle invalid integer input gracefully, maybe ignore filter or raise specific error
+                 logger.warning(f"Invalid accommodation_id filter value: {accommodation_filter}")
+                 # Return empty queryset or ignore filter? Let's ignore for now.
+                 pass 
+        if reservation_filter:
+             try:
+                 queryset = queryset.filter(reservation_id=int(reservation_filter))
+             except ValueError:
+                 logger.warning(f"Invalid reservation_id filter value: {reservation_filter}")
+                 pass 
+
+        # Apply specialist-only filters
+        if role_type == 'specialist':
             member_filter = self.request.query_params.get('member_id')
-            accommodation_filter = self.request.query_params.get('accommodation_id')
-            reservation_filter = self.request.query_params.get('reservation_id')
             if member_filter:
                  queryset = queryset.filter(reservation__member__uid=member_filter)
-            if accommodation_filter:
-                 queryset = queryset.filter(reservation__accommodation_id=accommodation_filter)
-            if reservation_filter:
-                 queryset = queryset.filter(reservation_id=reservation_filter)
-        else:
-            queryset = queryset.none()
+        # else: (role_type == 'member')
+            # Removed the filter: queryset = queryset.filter(reservation__member__uid=role_id)
+            # Now members see all ratings from their university
 
-        # queryset = queryset.select_related('reservation', 'reservation__member', 'reservation__accommodation', 'reservation__university')
         return queryset
 
     def perform_create(self, serializer):

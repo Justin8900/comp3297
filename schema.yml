@@ -16,49 +16,54 @@ info:
     \ # Requires ID for specialist\nGET /members/hku:u1234567/reservations/?role=hku:member:u1234567\
     \ # Requires matching ID\n```\n\n### Resource-Oriented Design & Actions\n\nThe\
     \ API generally follows a resource-oriented design. Specific actions often use\
-    \ dedicated sub-paths:\n- Creating a reservation: Use `POST /reservations/` (logic\
-    \ handled in view)\n- Canceling a reservation: Use `POST /reservations/{id}/cancel/`\n\
-    - Confirming a reservation: Use `POST /reservations/{id}/confirm/`\n- Rating an\
-    \ accommodation: Use `POST /ratings/` (logic handled in view)\n\n**Note on Authentication/Permissions:**\
-    \ Role checks are implemented via custom permission classes and logic within the\
-    \ viewsets. Standard DRF authentication (SessionAuthentication, BasicAuthentication)\
-    \ is assumed.\n\n### Permission Rules Summary (Simplified):\n\n1.  **Property\
-    \ Owners (`/property-owners/`)**: Only Specialists (`uni_code:specialist[:id]`)\
-    \ can perform List, Create, Retrieve, Update, Delete.\n2.  **Accommodations (`/accommodations/`)**:\n\
+    \ dedicated sub-paths or HTTP methods:\n- Creating a reservation: Use `POST /reservations/`\
+    \ (logic handled in view)\n- **Updating/Canceling/Confirming a reservation**:\
+    \ Use `PATCH /reservations/{id}/` with appropriate status in the body (e.g., `{\"\
+    status\": \"confirmed\"}`, `{\"status\": \"cancelled\"}`). Cancellation sets `cancelled_by`\
+    \ automatically.\n- Rating an accommodation: Use `POST /ratings/` (logic handled\
+    \ in view)\n\n**Note on Authentication/Permissions:** Role checks are implemented\
+    \ via custom permission classes and logic within the viewsets. Standard DRF authentication\
+    \ (SessionAuthentication, BasicAuthentication) is assumed.\n\n### Permission Rules\
+    \ Summary (Updated):\n\n1.  **Property Owners (`/property-owners/`)**: Only Specialists\
+    \ (`uni_code:specialist[:id]`) can perform List, Create, Retrieve, Update, Delete.\
+    \ (Now includes `email` field).\n2.  **Accommodations (`/accommodations/`)**:\n\
     \    - List/Retrieve: Any Member (`uni_code:member:uid`) or Specialist (`uni_code:specialist[:id]`).\
     \ View filters by university.\n    - Create/Update/Delete: Only Specialists (`uni_code:specialist[:id]`)\
-    \ whose university is linked to the accommodation.\n3.  **Members (`/members/`)**:\n\
-    \    - List/Create/Delete: Only Specialists (`uni_code:specialist[:id]`) from\
-    \ the target university.\n    - Retrieve/Update: Specialists (`uni_code:specialist[:id]`)\
-    \ from the same university OR the specific Member themselves (`uni_code:member:<uid>`).\n\
-    \    - List Reservations (`/members/{uid}/reservations/`): Specialists (`uni_code:specialist[:id]`)\
-    \ from the same university OR the specific Member themselves (`uni_code:member:<uid>`).\n\
-    4.  **Specialists (`/specialists/`)**: \n    - List/Retrieve: Only Specialists\
-    \ (`uni_code:specialist[:id]`) from the same university.\n    - Create/Update/Delete:\
-    \ Restricted (likely Admin/Superuser only).\n5.  **Reservations (`/reservations/`)**:\n\
-    \    - List (`GET /reservations/`): Members (`uni_code:member:uid`) see their\
-    \ own; Specialists (`uni_code:specialist[:id]`) see their university's.\n    -\
-    \ Create (`POST /reservations/`): Members (`uni_code:member:uid`) for self; Specialists\
-    \ (`uni_code:specialist[:id]`) for members in their university (requires `member_uid`\
-    \ in body).\n    - Retrieve/Update (`GET/PUT/PATCH /reservations/{id}/`): Member\
-    \ owner (`uni_code:member:uid`) or Specialist (`uni_code:specialist[:id]`) from\
-    \ the reservation's university.\n    - Cancel (`POST /reservations/{id}/cancel/`):\
-    \ Member owner or Specialist from the reservation's university.\n    - Confirm\
-    \ (`POST /reservations/{id}/confirm/`): Specialist from the reservation's university.\n\
-    \    - Delete (`DELETE /reservations/{id}/`): Specialist from the reservation's\
-    \ university.\n6.  **Ratings (`/ratings/`)**:\n    - List (`GET /ratings/`): Members\
-    \ (`uni_code:member:uid`) see their own; Specialists (`uni_code:specialist[:id]`)\
-    \ see their university's.\n    - Create (`POST /ratings/`): Only Members (`uni_code:member:uid`)\
-    \ for their own completed reservations.\n    - Retrieve (`GET /ratings/{id}/`):\
-    \ Member owner or Specialist from the rating's university.\n    - Delete (`DELETE\
-    \ /ratings/{id}/`): Specialist from the rating's university.\n    - Update: Restricted.\n\
-    \nIf you attempt to access an endpoint without the required role or permission,\
-    \ you should receive a 403 Forbidden or 400 Bad Request error with an appropriate\
-    \ error message.\n\n## Features\n\n- University Specialists can manage accommodations,\
-    \ property owners, and handle reservations for their university.\n- University\
-    \ Members can search accommodations, make reservations, and rate their stays.\n\
-    - Property owners are managed entities in the system, not users with direct API\
-    \ access.\n"
+    \ whose university is linked to the accommodation. (Now includes `building_name`\
+    \ field).\n3.  **Members (`/members/`)**:\n    - List/Create/Delete: Only Specialists\
+    \ (`uni_code:specialist[:id]`) from the target university.\n    - Retrieve/Update:\
+    \ Specialists (`uni_code:specialist[:id]`) from the same university OR the specific\
+    \ Member themselves (`uni_code:member:<uid>`). (Now uses `phone_number` and `email`\
+    \ instead of `contact`).\n    - List Reservations (`/members/{uid}/reservations/`):\
+    \ Specialists (`uni_code:specialist[:id]`) from the same university OR the specific\
+    \ Member themselves (`uni_code:member:<uid>`).\n4.  **Specialists (`/specialists/`)**:\
+    \ \n    - List/Retrieve: Only Specialists (`uni_code:specialist[:id]`) from the\
+    \ same university.\n    - Create/Update/Delete: Restricted (likely Admin/Superuser\
+    \ only).\n5.  **Reservations (`/reservations/`)**:\n    - List (`GET /reservations/`):\
+    \ Members (`uni_code:member:uid`) see their own; Specialists (`uni_code:specialist[:id]`)\
+    \ see their university's.\n    - Create (`POST /reservations/`): Members (`uni_code:member:uid`)\
+    \ for self; Specialists (`uni_code:specialist[:id]`) for members in their university\
+    \ (requires `member_uid` in body).\n    - Retrieve/Update (`GET/PUT/PATCH /reservations/{id}/`):\
+    \ Member owner (`uni_code:member:uid`) or Specialist (`uni_code:specialist[:id]`)\
+    \ from the reservation's university.\n    - **Cancel**: Use `PATCH /reservations/{id}/`\
+    \ with `{\"status\": \"cancelled\"}`. Member owner can only cancel `pending` reservations.\
+    \ Specialist can cancel any (non-final) reservation in their university.\n   \
+    \ - **Confirm**: Use `PATCH /reservations/{id}/` with `{\"status\": \"confirmed\"\
+    }` (Specialists only).\n    - Delete (`DELETE /reservations/{id}/`): **Disallowed**\
+    \ (Returns 405 Method Not Allowed).\n6.  **Ratings (`/ratings/`)**:\n    - List\
+    \ (`GET /ratings/`): **Any Member or Specialist** (`uni_code:member:uid` or `uni_code:specialist[:id]`)\
+    \ **can list all ratings within their university**. Can be filtered by `accommodation_id`.\n\
+    \    - Create (`POST /ratings/`): Only Members (`uni_code:member:uid`) for their\
+    \ own completed reservations.\n    - Retrieve (`GET /ratings/{id}/`): **Any Member\
+    \ or Specialist** (`uni_code:member:uid` or `uni_code:specialist[:id]`) **can\
+    \ retrieve any rating within their university**.\n    - Delete (`DELETE /ratings/{id}/`):\
+    \ Specialist from the rating's university.\n    - Update: Restricted.\n\nIf you\
+    \ attempt to access an endpoint without the required role or permission, you should\
+    \ receive a 403 Forbidden or 400 Bad Request error with an appropriate error message.\n\
+    \n## Features\n\n- University Specialists can manage accommodations, property\
+    \ owners, and handle reservations for their university.\n- University Members\
+    \ can search accommodations, make reservations, and rate their stays.\n- Property\
+    \ owners are managed entities in the system, not users with direct API access.\n"
 paths:
   /accommodations/:
     get:
@@ -778,9 +783,9 @@ paths:
   /ratings/:
     get:
       operationId: ratings_list
-      description: List ratings based on role. Members see ratings for their reservations.
-        Specialists see all ratings within their university.
-      summary: List ratings (Members see own, Specialists see their Uni's)
+      description: List ratings associated with the user's university. Visible to
+        all Members and Specialists of that university. Can be filtered by accommodation_id.
+      summary: List ratings (Public within University)
       parameters:
       - in: query
         name: accommodation_id
@@ -866,10 +871,9 @@ paths:
   /ratings/{id}/:
     get:
       operationId: ratings_retrieve
-      description: Retrieve details of a specific rating. Members can retrieve ratings
-        for their own reservations. Specialists can retrieve any rating within their
-        university.
-      summary: Retrieve a rating
+      description: Retrieve details of a specific rating. Visible to any Member or
+        Specialist from the rating's associated university.
+      summary: Retrieve a rating (Public within University)
       parameters:
       - in: path
         name: id
@@ -978,7 +982,7 @@ paths:
       operationId: reservations_create
       description: Create a new reservation. Members reserve for self. Specialists
         can reserve for members within their university (must provide member_id in
-        request body).
+        request body). Defaults to 'pending' status.
       summary: Create a new reservation
       parameters:
       - in: query
@@ -1039,7 +1043,8 @@ paths:
     put:
       operationId: reservations_update
       description: Update a reservation (e.g., change status). Requires Specialist
-        role from the reservation's university.
+        role from the reservation's university. Use PATCH for status changes like
+        confirm/complete/cancel.
       summary: Update reservation (Specialists Only)
       parameters:
       - in: path
@@ -1077,9 +1082,11 @@ paths:
           description: ''
     patch:
       operationId: reservations_partial_update
-      description: Partially update a reservation. Requires Specialist role from the
-        reservation's university.
-      summary: Partially update reservation (Specialists Only)
+      description: 'Partially update a reservation. Members can use this to cancel
+        their *pending* reservations (`{"status": "cancelled"}`). Specialists can
+        use it to update status (e.g., `confirmed`, `cancelled`). Requires appropriate
+        role from the reservation''s university.'
+      summary: Partially update/cancel reservation (Member/Specialist)
       parameters:
       - in: path
         name: id
@@ -1091,7 +1098,7 @@ paths:
         name: role
         schema:
           type: string
-        description: 'User role (format: ''uni_code:specialist[:id]'')'
+        description: 'User role (format: ''uni_code:member:uid'' or ''uni_code:specialist[:id]'')'
         required: true
       tags:
       - reservations
@@ -1113,29 +1120,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Reservation'
           description: ''
-    delete:
-      operationId: reservations_destroy
-      description: Delete a reservation. Requires Specialist role from the reservation's
-        university.
-      summary: Delete reservation (Specialists Only)
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this reservation.
-        required: true
-      - in: query
-        name: role
-        schema:
-          type: string
-        description: 'User role (format: ''uni_code:specialist[:id]'')'
-        required: true
-      tags:
-      - reservations
-      responses:
-        '204':
-          description: No response body
   /specialists/:
     get:
       operationId: specialists_list
@@ -1230,6 +1214,9 @@ components:
             * `hostel` - Hostel
           x-spec-enum-id: 485b134c5c066a7a
         address:
+          type: string
+          maxLength: 255
+        building_name:
           type: string
           maxLength: 255
         room_number:
@@ -1343,6 +1330,9 @@ components:
           type: string
           minLength: 1
           maxLength: 255
+        building_name:
+          type: string
+          maxLength: 255
         room_number:
           type: string
           nullable: true
@@ -1428,10 +1418,15 @@ components:
             * `HKUST` - Hong Kong University of Science and Technology
           x-spec-enum-id: 6a572ca0828b1abe
           readOnly: true
-        contact:
+        phone_number:
           type: string
           nullable: true
-          maxLength: 50
+          maxLength: 20
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
       required:
       - name
       - uid
@@ -1448,10 +1443,15 @@ components:
           type: string
           minLength: 1
           maxLength: 255
-        contact:
+        phone_number:
           type: string
           nullable: true
-          maxLength: 50
+          maxLength: 20
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
       required:
       - name
       - uid
@@ -1619,6 +1619,9 @@ components:
           type: string
           minLength: 1
           maxLength: 255
+        building_name:
+          type: string
+          maxLength: 255
         room_number:
           type: string
           nullable: true
@@ -1684,10 +1687,15 @@ components:
           type: string
           minLength: 1
           maxLength: 255
-        contact:
+        phone_number:
           type: string
           nullable: true
-          maxLength: 50
+          maxLength: 20
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
     PatchedPropertyOwnerRequest:
       type: object
       description: Serializer for the PropertyOwner model.
@@ -1700,6 +1708,11 @@ components:
           type: string
           minLength: 1
           maxLength: 255
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
     PatchedReservationRequest:
       type: object
       description: |-
@@ -1707,12 +1720,29 @@ components:
         Handles creation by members (self) or specialists (for a member).
         Handles display of reservations.
       properties:
+        status:
+          enum:
+          - pending
+          - confirmed
+          - cancelled
+          - completed
+          type: string
+          description: |-
+            * `pending` - Pending
+            * `confirmed` - Confirmed
+            * `cancelled` - Cancelled
+            * `completed` - Completed
+          x-spec-enum-id: ef0e3523b506c807
         start_date:
           type: string
           format: date
         end_date:
           type: string
           format: date
+        cancelled_by:
+          type: string
+          nullable: true
+          maxLength: 50
         accommodation:
           type: integer
           writeOnly: true
@@ -1734,6 +1764,11 @@ components:
         phone_no:
           type: string
           maxLength: 255
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
       required:
       - id
       - name
@@ -1750,6 +1785,11 @@ components:
           type: string
           minLength: 1
           maxLength: 255
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
       required:
       - name
       - phone_no
@@ -1832,7 +1872,6 @@ components:
             * `cancelled` - Cancelled
             * `completed` - Completed
           x-spec-enum-id: ef0e3523b506c807
-          readOnly: true
         start_date:
           type: string
           format: date
@@ -1841,8 +1880,8 @@ components:
           format: date
         cancelled_by:
           type: string
-          readOnly: true
           nullable: true
+          maxLength: 50
         university:
           enum:
           - HKU
@@ -1868,13 +1907,11 @@ components:
           readOnly: true
       required:
       - accommodation_details
-      - cancelled_by
       - end_date
       - id
       - member
       - rating
       - start_date
-      - status
       - university
     ReservationRequest:
       type: object
@@ -1883,12 +1920,29 @@ components:
         Handles creation by members (self) or specialists (for a member).
         Handles display of reservations.
       properties:
+        status:
+          enum:
+          - pending
+          - confirmed
+          - cancelled
+          - completed
+          type: string
+          description: |-
+            * `pending` - Pending
+            * `confirmed` - Confirmed
+            * `cancelled` - Cancelled
+            * `completed` - Completed
+          x-spec-enum-id: ef0e3523b506c807
         start_date:
           type: string
           format: date
         end_date:
           type: string
           format: date
+        cancelled_by:
+          type: string
+          nullable: true
+          maxLength: 50
         accommodation:
           type: integer
           writeOnly: true

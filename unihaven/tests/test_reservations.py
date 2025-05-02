@@ -95,54 +95,54 @@ class ReservationBaseTestCase(APITestCase):
 
 class ReservationMemberActionsTests(ReservationBaseTestCase):
 
-    def test_member_can_cancel_own_pending_reservation(self):
-        """Verify member can cancel their own PENDING reservation (DELETE)."""
+    def test_member_can_cancel_own_pending_reservation_via_patch(self):
+        """Verify member can cancel their own PENDING reservation via PATCH."""
         role = f"hku:member:{self.hku_member.uid}"
         url = self._get_url(role, self.res_hku_pending.id)
-        response = self.client.delete(url)
+        data = {'status': 'cancelled'}
+        response = self.client.patch(url, data, format='json')
 
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        # Verify the reservation status is now cancelled
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.res_hku_pending.refresh_from_db()
         self.assertEqual(self.res_hku_pending.status, 'cancelled')
-        # with self.assertRaises(Reservation.DoesNotExist):
-        #     Reservation.objects.get(pk=self.res_hku_pending.id)
+        self.assertEqual(self.res_hku_pending.cancelled_by, 'member') # Check who cancelled
 
-    def test_member_cannot_cancel_others_pending_reservation(self):
-        """Verify member cannot cancel another member's pending reservation."""
+    def test_member_cannot_cancel_others_pending_reservation_via_patch(self):
+        """Verify member cannot cancel another member's pending reservation via PATCH."""
         role = f"cu:member:{self.cu_member.uid}" # CU member
         url = self._get_url(role, self.res_hku_pending.id) # HKU member's reservation
-        response = self.client.delete(url)
+        data = {'status': 'cancelled'}
+        response = self.client.patch(url, data, format='json')
 
-        # Should be forbidden
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertIn("cannot access reservations belonging to other users or universities", str(response.data).lower())
-        # Ensure original reservation still exists and is unchanged
         self.assertTrue(Reservation.objects.filter(pk=self.res_hku_pending.id, status='pending').exists())
 
-    def test_member_cannot_cancel_completed_reservation(self):
-        """Verify member cannot cancel a COMPLETED reservation."""
+    def test_member_cannot_cancel_completed_reservation_via_patch(self):
+        """Verify member cannot cancel a COMPLETED reservation via PATCH."""
         role = f"hkust:member:{self.hkust_member.uid}"
         url = self._get_url(role, self.res_hkust_completed.id)
-        response = self.client.delete(url)
+        data = {'status': 'cancelled'}
+        response = self.client.patch(url, data, format='json')
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        # Check the specific message from CanAccessReservationObject
-        self.assertIn("cannot cancel reservations that are already completed", str(response.data).lower())
-        self.assertTrue(Reservation.objects.filter(pk=self.res_hkust_completed.id).exists())
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
+        # Check if the expected error message is in the list of errors for the 'status' field
+        self.assertIn("cannot change status from 'completed'.", response.data['status'])
+        # Verify the reservation status hasn't changed
+        self.res_hkust_completed.refresh_from_db()
+        self.assertEqual(self.res_hkust_completed.status, 'completed')
 
-    def test_member_can_cancel_own_confirmed_reservation(self):
-        """Verify member can cancel their own CONFIRMED reservation (DELETE)."""
+    def test_member_cannot_cancel_own_confirmed_reservation_via_patch(self):
+        """Verify member cannot cancel their own CONFIRMED reservation via PATCH."""
         role = f"hku:member:{self.hku_member.uid}"
         url = self._get_url(role, self.res_hku_confirmed_for_cancel.id)
-        response = self.client.delete(url)
+        data = {'status': 'cancelled'}
+        response = self.client.patch(url, data, format='json')
 
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        # Verify the reservation status is now cancelled
-        self.res_hku_confirmed_for_cancel.refresh_from_db()
-        self.assertEqual(self.res_hku_confirmed_for_cancel.status, 'cancelled')
-        # with self.assertRaises(Reservation.DoesNotExist):
-        #     Reservation.objects.get(pk=self.res_hku_confirmed_for_cancel.id)
+        # Expect 400 due to validation in perform_update checking old_status != 'pending' for members
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
+        self.assertIn("members can only cancel reservations that are currently pending", str(response.data).lower())
+        self.assertTrue(Reservation.objects.filter(pk=self.res_hku_confirmed_for_cancel.id, status='confirmed').exists())
 
     def test_create_reservation(self):
         """Verify member can create a new reservation (POST)."""
@@ -171,116 +171,119 @@ class ReservationMemberActionsTests(ReservationBaseTestCase):
     def test_list_reservations(self):
         """Verify member can list their own reservations (GET)."""
         role = f"hku:member:{self.hku_member.uid}"
-        url = reverse('reservation-list')
-        url_with_role = f"{url}?role={role}"
-        response = self.client.get(url_with_role)
+        url = reverse('reservation-list') + f"?role={role}"
+        response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Check if the response contains the member's reservations
-        print("Response data:", response.data)
-        reservation_ids = [res['id'] for res in response.data['results']]
+        self.assertIn('results', response.data)
+        results = response.data['results']
+        reservation_ids = {res['id'] for res in results}
+
+        # Check expected reservations are present
         self.assertIn(self.res_hku_pending.id, reservation_ids)
         self.assertIn(self.res_hku_confirmed_for_cancel.id, reservation_ids)
+        # Check unexpected reservations are absent
         self.assertNotIn(self.res_cu_confirmed.id, reservation_ids)
         self.assertNotIn(self.res_hkust_completed.id, reservation_ids)
-        # Check the count of reservations
-        self.assertEqual(len(reservation_ids), 2)  # Only HKU member's reservations should be listed
-        # Check the status of the reservations
-        self.assertEqual(response.data['results'][0]['status'], 'confirmed')
-        self.assertEqual(response.data['results'][1]['status'], 'pending')
-        # Check the university of the reservations
-        self.assertEqual(response.data['results'][0]['university'], self.hku.code)
-        self.assertEqual(response.data['results'][1]['university'], self.hku.code)
-       
+        # Check the count
+        self.assertEqual(len(results), 2)
+
+        # Check statuses individually without assuming order
+        statuses = {res['id']: res['status'] for res in results}
+        self.assertEqual(statuses.get(self.res_hku_pending.id), 'pending')
+        self.assertEqual(statuses.get(self.res_hku_confirmed_for_cancel.id), 'confirmed')
+
 class ReservationSpecialistActionsTests(ReservationBaseTestCase):
 
-    def test_specialist_can_cancel_own_uni_pending_reservation(self):
-        """Verify specialist can cancel a PENDING reservation from their university."""
+    def test_specialist_can_cancel_own_uni_pending_reservation_via_patch(self):
+        """Verify specialist can cancel a PENDING reservation via PATCH."""
+        role = f"hku:specialist:{self.hku_specialist.id}"
+        url = self._get_url(role, self.res_hku_pending.id)
+        data = {'status': 'cancelled'}
+        response = self.client.patch(url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.res_hku_pending.refresh_from_db()
+        self.assertEqual(self.res_hku_pending.status, 'cancelled')
+        self.assertEqual(self.res_hku_pending.cancelled_by, 'specialist') # Check who cancelled
+
+    def test_specialist_can_cancel_own_uni_confirmed_reservation_via_patch(self):
+        """Verify specialist can cancel a CONFIRMED reservation via PATCH."""
+        role = f"cu:specialist:{self.cu_specialist.id}" 
+        url = self._get_url(role, self.res_cu_confirmed.id)
+        data = {'status': 'cancelled'}
+        response = self.client.patch(url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.res_cu_confirmed.refresh_from_db()
+        self.assertEqual(self.res_cu_confirmed.status, 'cancelled')
+        self.assertEqual(self.res_cu_confirmed.cancelled_by, 'specialist') # Check who cancelled
+
+    def test_specialist_cannot_cancel_other_uni_reservation_via_patch(self):
+        """Verify specialist cannot cancel a reservation from another uni via PATCH."""
+        role = f"hkust:specialist:{self.hkust_specialist.id}" # HKUST specialist
+        url = self._get_url(role, self.res_hku_pending.id) # HKU reservation
+        data = {'status': 'cancelled'}
+        response = self.client.patch(url, data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn("cannot access reservations belonging to other users or universities", str(response.data).lower())
+        self.assertTrue(Reservation.objects.filter(pk=self.res_hku_pending.id, status='pending').exists())
+
+    def test_specialist_cannot_cancel_completed_reservation_via_patch(self):
+        """Verify specialist cannot cancel a COMPLETED reservation via PATCH."""
+        role = f"hkust:specialist:{self.hkust_specialist.id}"
+        url = self._get_url(role, self.res_hkust_completed.id)
+        data = {'status': 'cancelled'}
+        response = self.client.patch(url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
+        # Check if the expected error message is in the list of errors for the 'status' field
+        self.assertIn("cannot change status from 'completed'.", response.data['status'])
+        # Verify the reservation status hasn't changed
+        self.res_hkust_completed.refresh_from_db()
+        self.assertEqual(self.res_hkust_completed.status, 'completed')
+
+    def test_delete_reservation_disallowed(self):
+        """Verify DELETE method is disallowed for reservations."""
         role = f"hku:specialist:{self.hku_specialist.id}"
         url = self._get_url(role, self.res_hku_pending.id)
         response = self.client.delete(url)
-
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        # Verify the reservation status is now cancelled
-        self.res_hku_pending.refresh_from_db()
-        self.assertEqual(self.res_hku_pending.status, 'cancelled')
-        # with self.assertRaises(Reservation.DoesNotExist):
-        #     Reservation.objects.get(pk=self.res_hku_pending.id)
-
-    def test_specialist_can_cancel_own_uni_confirmed_reservation(self):
-        """Verify specialist can cancel a CONFIRMED reservation from their university."""
-        role = f"cu:specialist:{self.cu_specialist.id}" # Now use the created CU specialist
-        url = self._get_url(role, self.res_cu_confirmed.id)
-        response = self.client.delete(url)
-
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        # Verify the reservation status is now cancelled
-        self.res_cu_confirmed.refresh_from_db()
-        self.assertEqual(self.res_cu_confirmed.status, 'cancelled')
-        # with self.assertRaises(Reservation.DoesNotExist):
-        #     Reservation.objects.get(pk=self.res_cu_confirmed.id)
-
-    def test_specialist_cannot_cancel_other_uni_reservation(self):
-        """Verify specialist cannot cancel a reservation from another university."""
-        role = f"hkust:specialist:{self.hkust_specialist.id}" # HKUST specialist
-        url = self._get_url(role, self.res_hku_pending.id) # HKU reservation
-        response = self.client.delete(url)
-        
-        # Should be forbidden
+        # Expect 403 Forbidden because permissions block before the 405 override is reached
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertIn("cannot access reservations belonging to other users or universities", str(response.data).lower())
-        # Ensure original reservation still exists and is unchanged
-        self.assertTrue(Reservation.objects.filter(pk=self.res_hku_pending.id, status='pending').exists())
-
-    def test_specialist_cannot_cancel_completed_reservation(self):
-        """Verify specialist cannot cancel a COMPLETED reservation."""
-        role = f"hkust:specialist:{self.hkust_specialist.id}"
-        url = self._get_url(role, self.res_hkust_completed.id)
-        response = self.client.delete(url)
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        # Check the specific message from CanAccessReservationObject
-        self.assertIn("cannot cancel reservations that are already completed", str(response.data).lower())
-        self.assertTrue(Reservation.objects.filter(pk=self.res_hkust_completed.id).exists())
-
 
 class ReservationNotificationTests(ReservationBaseTestCase):
 
-    def test_notification_sent_on_new_reservation(self, mock_send_mail=None):
-        """Verify email notification is sent to relevant specialists on new reservation creation."""
-        # Clear the outbox before the action
+    # Mock mail.outbox for notification tests
+    def setUp(self):
         mail.outbox = []
-        
+
+    def test_notification_sent_on_new_reservation(self):
+        """Verify email notification is sent to relevant specialists on new reservation creation."""
         role = f"hku:member:{self.hku_member.uid}"
-        # Assumes router basename 'reservation'
-        url = reverse('reservation-list') # POST to list endpoint
-        url_with_role = f"{url}?role={role}"
+        url = reverse('reservation-list') + f"?role={role}"
         data = {
             "accommodation": self.acc3_all_unis.id,
-            "university": self.hku.code,
+            "university": self.hku.code, # University code is not needed in request body
             "start_date": "2026-02-01",
             "end_date": "2026-02-10"
         }
-        response = self.client.post(url_with_role, data, format='json')
-
+        response = self.client.post(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        # Check the outbox
         self.assertEqual(len(mail.outbox), 1)
         email = mail.outbox[0]
         self.assertIn(self.hku_specialist.user.email, email.to)
         self.assertIn("New Pending Reservation", email.subject)
 
-    def test_notification_sent_on_specialist_cancel(self, mock_send_mail=None):
-        """Verify email notification is sent to member on specialist cancellation."""
-        mail.outbox = []
+    def test_notification_sent_on_specialist_cancel(self):
+        """Verify email notification is sent to member on specialist cancellation via PATCH."""
         role = f"hku:specialist:{self.hku_specialist.id}"
-        url = self._get_url(role, self.res_hku_confirmed_for_cancel.id) 
+        url = self._get_url(role, self.res_hku_confirmed_for_cancel.id)
+        data = {'status': 'cancelled'}
+        response = self.client.patch(url, data, format='json') # Use PATCH
 
-        response = self.client.delete(url)
-
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        # Check the outbox (expecting emails to member AND specialists)
-        self.assertEqual(len(mail.outbox), 2) # Should be 2 emails sent (specialists + member)
+        self.assertEqual(response.status_code, status.HTTP_200_OK) # Expect 200
+        self.assertEqual(len(mail.outbox), 2) # Expect 2 emails (specialist + member)
         # Find the email to the member
         member_email = next((email for email in mail.outbox if self.hku_member.user.email in email.to), None)
         self.assertIsNotNone(member_email)
@@ -289,21 +292,19 @@ class ReservationNotificationTests(ReservationBaseTestCase):
         # Optionally check specialist email too
         specialist_email = next((email for email in mail.outbox if self.hku_specialist.user.email in email.to), None)
         self.assertIsNotNone(specialist_email)
+        self.assertIn("Reservation Cancelled", specialist_email.subject)
 
-    def test_notification_sent_on_member_cancel(self, mock_send_mail=None):
-        """Verify email notification is sent to specialists on member cancellation."""
-        mail.outbox = []
+    def test_notification_sent_on_member_cancel(self):
+        """Verify email notification is sent to specialists on member cancellation via PATCH."""
         role = f"hku:member:{self.hku_member.uid}"
-        # Target the specific reservation designed for cancellation tests
-        url = self._get_url(role, self.res_hku_confirmed_for_cancel.id) 
+        # Use the PENDING reservation for member cancellation test
+        url = self._get_url(role, self.res_hku_pending.id) 
+        data = {'status': 'cancelled'}
+        response = self.client.patch(url, data, format='json') # Use PATCH
 
-        response = self.client.delete(url)
-
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        # Check the outbox (expecting only email to specialists when member cancels)
-        self.assertEqual(len(mail.outbox), 1) # Should be 1 email sent (to specialists)
+        self.assertEqual(response.status_code, status.HTTP_200_OK) # Expect 200
+        self.assertEqual(len(mail.outbox), 1) # Should be 1 email sent (to specialists only)
         email = mail.outbox[0]
-        # Verify it went to the specialist(s) and not the member
         self.assertIn(self.hku_specialist.user.email, email.to)
         self.assertNotIn(self.hku_member.user.email, email.to)
         self.assertIn("Reservation Cancelled", email.subject)

@@ -329,33 +329,31 @@ class CanAccessRatingObject(BaseRolePermission):
         # obj is the Rating instance
         uni_code, role_type, role_id = self.get_role_info(request)
         
-        # --- Basic validation ---
+        # --- Basic validation --- 
         if not uni_code or not role_type:
              return False # Invalid role
 
-        # --- Ensure object has necessary attributes for checks ---
+        # --- Ensure object has necessary attributes --- 
         if not hasattr(obj, 'reservation') or not obj.reservation \
            or not hasattr(obj.reservation, 'university') or not obj.reservation.university \
            or not hasattr(obj.reservation, 'member') or not obj.reservation.member:
             self.message = "Rating object is missing required reservation, university, or member information."
             return False
 
-        # --- University Check ---
+        # --- University Check --- 
         # The requesting role's university must match the rating's reservation's university
-        if obj.reservation.university.code.lower() != uni_code:
+        if obj.reservation.university.code.lower() != uni_code.lower():
              self.message = f"Permission denied: Action requires role from university '{obj.reservation.university.code}'."
              return False
 
-        # --- Role Check ---
+        # --- Role Check (Simplified) --- 
+        # Allow access if the role is valid (member or specialist) and the university check passed.
         if role_type == 'specialist':
-            # Specialists from the relevant university can access the rating
             return True
         elif role_type == 'member' and role_id:
-            # Member can access ratings associated with their own reservations
-            is_owner = obj.reservation.member.uid == role_id
-            if not is_owner:
-                 self.message = "Members can only access ratings for their own reservations."
-            return is_owner
+            # Member from the same university can access any rating within that university.
+            # Removed the ownership check: is_owner = obj.reservation.member.uid == role_id
+            return True 
 
         return False # Deny other roles or invalid formats
 
