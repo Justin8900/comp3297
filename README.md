@@ -197,7 +197,7 @@ The OpenAPI 3 schema is automatically generated using `drf-spectacular`.
 *   **Schema File Generation:** To generate/update the `schema.yml` file in the parent directory:
     ```bash
     # Run from the comp3297 directory
-    python manage.py spectacular --file ../schema.yml --color
+    python manage.py spectacular --file schema.yml --color
     ```
 *   **Swagger UI:** (If configured in `COMP3297/urls.py`) Access interactive documentation via a browser, typically at `/api/schema/swagger-ui/`.
 *   **ReDoc:** (If configured in `COMP3297/urls.py`) Access alternative documentation via a browser, typically at `/api/schema/redoc/`.
