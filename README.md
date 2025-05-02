@@ -1,467 +1,215 @@
-# UniHaven API Documentation
+# UniHaven API
 
 ## Overview
 
-UniHaven is a RESTful API system for managing student accommodations at the University of Hong Kong. The system allows HKU members to search and reserve accommodations, while CEDARS specialists manage these accommodations and reservations.
+UniHaven is a Django REST Framework API designed to manage student accommodation listings and reservations across multiple universities (initially HKU, CUHK, HKUST).
 
-## Authentication and Role-Based Access
+It provides endpoints for University Specialists to manage properties and related entities, and for University Members (students/staff) to search for accommodations, make reservations, and provide ratings. Access control is primarily managed through a `role` query parameter.
 
-All API endpoints use role-based access control. When making API requests, you must include role parameters:
+## Features
 
-### Role Parameters
+*   **Multi-University Support:** Designed to handle members, specialists, and accommodations linked to specific universities (HKU, CU, HKUST).
+*   **Role-Based Access:** API access is controlled via a `role` query parameter, differentiating between Members and Specialists from specific universities.
+*   **Accommodation Management:** CRUD operations for accommodation listings, including detailed address components, availability, pricing, and university association.
+*   **Geocoding:** Automatic geocoding of accommodation addresses (latitude/longitude) based on building name or address.
+*   **Member & Specialist Management:** Basic CRUD operations for university members and specialists, filtered by university.
+*   **Property Owner Management:** CRUD operations for property owners associated with accommodations.
+*   **Reservation System:** Members can reserve accommodations; specialists can manage and confirm/cancel reservations for their university. Members can only cancel their own *pending* reservations.
+*   **Rating System:** Members can rate accommodations based on completed reservations. Ratings are visible to members/specialists within the same university as the reservation.
+*   **Targeted Notifications:** Automated console/email notifications for actions like new reservations or cancellations.
+*   **API Documentation:** Auto-generated OpenAPI 3 schema using `drf-spectacular`.
 
-1. **For HKU Members**:
-   ```
-   ?role=hku_member&current_user_id=YOUR_UID
-   ```
-   Example: `?role=hku_member&current_user_id=3035940999`
+## API Structure & Role Parameter
 
-2. **For CEDARS Specialists**:
-   ```
-   ?role=cedars_specialist
-   ```
+The API primarily uses a role-based access system controlled by the `role` query parameter, which must be included in most requests. Endpoints are accessed directly from the root URL (e.g., `/accommodations/`).
 
-These parameters must be included in all API requests to determine the appropriate access level.
+The `role` parameter format is: `uni_code:role_type:id`
 
-## Installation and Setup
+*   `uni_code`: Lowercase university code (e.g., `hku`, `cu`, `hkust`).
+*   `role_type`: Either `member` or `specialist`.
+*   `id`: The Member's UID (e.g., `resmem1`) or the Specialist's database ID (e.g., `1`). The ID may be optional for some general specialist list actions.
 
+**Example:**
+`GET /accommodations/?role=hku:member:resmem1`
+`POST /members/?role=cu:specialist:2`
+
+Permissions are enforced based on this role parameter and the context of the requested resource (e.g., ensuring users only access data relevant to their university or ownership).
+
+## API Usage Examples (curl)
+
+*(Replace BASE_URL, university codes, member UIDs, specialist IDs, and resource IDs as needed)*
+
+**1. Member Lists Accommodations at their University:**
 ```bash
-# Clone the repository
-git clone https://github.com/Justin8900/comp3297.git
+export BASE_URL="http://127.0.0.1:8000"
+export MEMBER_ROLE="hku:member:resmem1"
 
-# Navigate to the project directory
-cd comp3297
-
-# Install Django
-pip install django
-pip install djangorestframework
-
-# Run migrations
-python manage.py migrate
-
-# Start the development server
-python manage.py runserver
+curl -X GET "$BASE_URL/accommodations/?role=$MEMBER_ROLE"
 ```
 
-The API will be available at http://localhost:8000/
+**2. Member Creates a Reservation:**
+```bash
+export BASE_URL="http://127.0.0.1:8000"
+export MEMBER_ROLE="hku:member:resmem1"
+export ACC_ID=1 # ID of the accommodation to reserve
 
-## Using the Browsable API Interface
-
-Django REST Framework provides a powerful browsable API interface that makes it easy to interact with the UniHaven API through your web browser.
-
-### Getting Started with the Browsable API
-
-1. Start the development server and navigate to http://localhost:8000/ in your web browser
-2. You'll see a list of available API endpoints
-3. Click on any endpoint to explore it
-4. **Important**: Always append the required role parameters to the URL:
-   - For HKU members: `?role=hku_member&current_user_id=YOUR_UID`
-   - For CEDARS specialists: `?role=cedars_specialist`
-
-### Making Requests
-
-The browsable API interface allows you to:
-
-1. **GET requests**: 
-   - Simply navigate to the URL with appropriate parameters
-   - Example: http://localhost:8000/accommodations/?role=hku_member&current_user_id=3035940999
-
-2. **POST/PUT/PATCH requests**:
-   - Navigate to the appropriate URL
-   - Scroll down to find the HTML form
-   - Fill in the required fields
-   - Click the "POST", "PUT", or "PATCH" button to submit
-
-3. **Using Filters**:
-   - Add filter parameters to the URL
-   - The browsable API will show you the filtered results
-   - Example: http://localhost:8000/accommodations/?role=hku_member&current_user_id=3035940999&type=apartment
-
-### Example Workflow
-
-Here's how to reserve an accommodation using the browsable API:
-
-1. Browse to http://localhost:8000/accommodations/?role=hku_member&current_user_id=3035940999 to see available accommodations
-2. Note the ID of the accommodation you want to reserve
-3. Navigate to http://localhost:8000/hku-members/3035940999/reserve_accommodation/?role=hku_member&current_user_id=3035940999
-4. Fill in the form with:
-   - accommodation_id: The ID you noted
-   - start_date: Your check-in date
-   - end_date: Your check-out date
-5. Click "POST" to create the reservation
-
-## API Endpoints
-
-### Accommodations
-
-#### List Accommodations
-- **URL**: `/accommodations/`
-- **Method**: GET
-- **Required Role**: `hku_member` or `cedars_specialist`
-- **Parameters**:
-  - `role`: Required role parameter
-  - `current_user_id`: Required for HKU members
-  - Additional filter parameters (optional):
-    - `type`: Filter by accommodation type
-    - `min_price`/`max_price`: Filter by price range
-    - `min_beds`: Filter by minimum number of beds
-    - `address_contains`: Filter by address text
-    - `available_now=true`: Show only currently available accommodations
-
-**Example**:
-```
-# In your web browser:
-http://localhost:8000/accommodations/?role=hku_member&current_user_id=3035940999
+curl -X POST "$BASE_URL/reservations/?role=$MEMBER_ROLE" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "accommodation": '"$ACC_ID"', 
+           "start_date": "2026-10-01", 
+           "end_date": "2026-10-10"
+         }'
 ```
 
-#### Get Accommodation Details
-- **URL**: `/accommodations/{id}/`
-- **Method**: GET
-- **Required Role**: `hku_member` or `cedars_specialist`
+**3. Specialist Lists All Pending Reservations for their University:**
+```bash
+export BASE_URL="http://127.0.0.1:8000"
+export SPEC_ROLE="hku:specialist:1"
 
-**Example**:
-```
-# In your web browser:
-http://localhost:8000/accommodations/1/?role=hku_member&current_user_id=3035940999
+curl -X GET "$BASE_URL/reservations/?role=$SPEC_ROLE&status=pending"
 ```
 
-#### Search Accommodations
-- **URL**: `/accommodations/search/`
-- **Method**: GET
-- **Required Role**: `hku_member` or `cedars_specialist`
-- **Parameters**:
-  - `type`: Filter by accommodation type (apartment, house, villa, studio, hostel)
-  - `min_beds`: Filter by minimum number of beds
-  - `exact_beds`: Filter by exact number of beds
-  - `min_bedrooms`: Filter by minimum number of bedrooms
-  - `exact_bedrooms`: Filter by exact number of bedrooms
-  - `min_rating`: Filter by minimum rating (0-5)
-  - `exact_rating`: Filter by exact rating (0-5)
-  - `max_price`: Filter by maximum daily price
-  - `available_from`: Filter by availability start date (YYYY-MM-DD)
-  - `available_until`: Filter by availability end date (YYYY-MM-DD)
-  - `distance_from`: Sort by distance from a specific HKU location (Main Campus, Sassoon Road Campus, Swire Institute of Marine Science, Kadoorie Centre, Faculty of Dentistry)
+**4. Specialist Confirms a Reservation:**
+```bash
+export BASE_URL="http://127.0.0.1:8000"
+export SPEC_ROLE="hku:specialist:1"
+export RES_ID=12 # ID of the reservation to confirm
 
-**Example**:
-```
-# In your web browser:
-http://localhost:8000/accommodations/search/?role=hku_member&current_user_id=3035940999&type=apartment&min_beds=2&max_price=1500.00&distance_from=Main%20Campus
+curl -X PATCH "$BASE_URL/reservations/$RES_ID/?role=$SPEC_ROLE" \
+     -H "Content-Type: application/json" \
+     -d '{"status": "confirmed"}'
 ```
 
-#### Create Accommodation
-- **URL**: `/accommodations/`
-- **Method**: POST
-- **Required Role**: `cedars_specialist` only
-- **Data Parameters**:
-  - `type`: Accommodation type (required)
-  - `address`: Physical address (required)
-  - `available_from`: Start date of availability (required, YYYY-MM-DD)
-  - `available_until`: End date of availability (required, YYYY-MM-DD)
-  - `beds`: Number of beds (required, min: 0)
-  - `bedrooms`: Number of bedrooms (required, min: 0)
-  - `daily_price`: Price per day (required, min: 0.01)
-  - `owner_id`: ID of existing property owner (optional)
-  - `owner_name` and `owner_phone`: For creating a new owner (both required if owner_id not provided)
-  - `specialist_id`: ID of managing specialist (optional)
+**5. Member Cancels Own Pending Reservation:**
+```bash
+export BASE_URL="http://127.0.0.1:8000"
+export MEMBER_ROLE="hku:member:resmem1"
+export RES_ID=11 # ID of the PENDING reservation to cancel
 
-**Example**:
-```
-# In your web browser:
-1. Navigate to http://localhost:8000/accommodations/?role=cedars_specialist
-2. Scroll down to the HTML form
-3. Fill in all required fields
-4. Click "POST" to submit
+curl -X PATCH "$BASE_URL/reservations/$RES_ID/?role=$MEMBER_ROLE" \
+     -H "Content-Type: application/json" \
+     -d '{"status": "cancelled"}'
 ```
 
-#### Update Accommodation
-- **URL**: `/accommodations/{id}/`
-- **Method**: PUT or PATCH
-- **Required Role**: `cedars_specialist` only
+**6. Member Rates a Completed Reservation:**
+```bash
+export BASE_URL="http://127.0.0.1:8000"
+export MEMBER_ROLE="hku:member:resmem1"
+export COMPLETED_RES_ID=10 # ID of the COMPLETED reservation
 
-#### Delete Accommodation
-- **URL**: `/accommodations/{id}/`
-- **Method**: DELETE
-- **Required Role**: `cedars_specialist` only
-
-### HKU Members
-
-#### List HKU Members
-- **URL**: `/hku-members/`
-- **Method**: GET
-- **Required Role**: `cedars_specialist` only
-
-#### Get HKU Member Details
-- **URL**: `/hku-members/{uid}/`
-- **Method**: GET
-- **Required Role**: `cedars_specialist` or the same HKU member (`current_user_id` must match `uid`)
-
-#### View Member's Reservations
-- **URL**: `/hku-members/{uid}/reservations/`
-- **Method**: GET
-- **Required Role**: `cedars_specialist` or the same HKU member (`current_user_id` must match `uid`)
-- **Parameters**:
-  - `status`: Filter by reservation status (optional, values: pending, confirmed, cancelled, completed)
-
-**Example**:
-```
-# In your web browser:
-http://localhost:8000/hku-members/3035940999/reservations/?role=hku_member&current_user_id=3035940999&status=confirmed
+curl -X POST "$BASE_URL/ratings/?role=$MEMBER_ROLE" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "reservation": '"$COMPLETED_RES_ID"', 
+           "score": 5, 
+           "comment": "Excellent stay!"
+         }'
 ```
 
-#### Reserve Accommodation
-- **URL**: `/hku-members/{uid}/reserve_accommodation/`
-- **Method**: POST
-- **Required Role**: `cedars_specialist` or the same HKU member (`current_user_id` must match `uid`)
-- **Data Parameters**:
-  - `accommodation_id`: ID of the accommodation to reserve (required)
-  - `start_date`: Start date of the reservation (required, YYYY-MM-DD)
-  - `end_date`: End date of the reservation (required, YYYY-MM-DD)
-  - `member_name`: Name of the HKU member (only required for first-time users)
+**7. Specialist Deletes a Rating:**
+```bash
+export BASE_URL="http://127.0.0.1:8000"
+export SPEC_ROLE="hku:specialist:1"
+export RATING_ID=3 # ID of the rating to delete
 
-**Example**:
-```
-# In your web browser:
-1. Navigate to http://localhost:8000/hku-members/3035940999/reserve_accommodation/?role=hku_member&current_user_id=3035940999
-2. Fill in the form with:
-   - accommodation_id: The ID of the accommodation
-   - start_date: Start date (YYYY-MM-DD)
-   - end_date: End date (YYYY-MM-DD)
-3. Click "POST" to submit
+curl -X DELETE "$BASE_URL/ratings/$RATING_ID/?role=$SPEC_ROLE"
 ```
 
-#### Cancel Reservation
-- **URL**: `/hku-members/{uid}/cancel_reservation/`
-- **Method**: POST
-- **Required Role**: `cedars_specialist` or the same HKU member (`current_user_id` must match `uid`)
-- **Data Parameters**:
-  - `reservation_id`: ID of the reservation to cancel (required)
+**8. Specialist Creates a Member:**
+```bash
+export BASE_URL="http://127.0.0.1:8000"
+export SPEC_ROLE="hku:specialist:1"
 
-**Example**:
-```
-# In your web browser:
-1. Navigate to http://localhost:8000/hku-members/3035940999/cancel_reservation/?role=hku_member&current_user_id=3035940999
-2. Fill in the form with:
-   - reservation_id: The ID of the reservation to cancel
-3. Click "POST" to submit
-```
-
-#### Rate Accommodation
-- **URL**: `/hku-members/{uid}/rate_accommodation/`
-- **Method**: POST
-- **Required Role**: The same HKU member only (`current_user_id` must match `uid`)
-- **Data Parameters**:
-  - `reservation_id`: ID of the completed reservation (required, status must be 'completed')
-  - `score`: Rating score, 0-5 (required)
-  - `comment`: Optional comment about the stay (optional)
-
-**Example**:
-```
-# In your web browser:
-1. Navigate to http://localhost:8000/hku-members/3035940999/rate_accommodation/?role=hku_member&current_user_id=3035940999
-2. Fill in the form with:
-   - reservation_id: The ID of the completed reservation
-   - score: Rating from 0-5
-   - comment: Optional feedback
-3. Click "POST" to submit
+curl -X POST "$BASE_URL/members/?role=$SPEC_ROLE" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "uid": "newmem123", 
+           "name": "New HKU Member", 
+           "phone_number": "55554444", 
+           "email": "newmem@hku.hk"
+         }'
 ```
 
-### CEDARS Specialists
+## Key Models
 
-#### List CEDARS Specialists
-- **URL**: `/cedars-specialists/`
-- **Method**: GET
-- **Required Role**: `cedars_specialist` only
+*   `University`: Represents HKU, CUHK, HKUST.
+*   `PropertyOwner`: Represents owners of accommodation properties.
+*   `Member`: Represents a student or staff member belonging to a specific University.
+*   `Specialist`: Represents an administrative user belonging to a specific University, responsible for management tasks.
+*   `Accommodation`: Represents a rentable property with details and links to `PropertyOwner` and the `University` entities where it is available.
+*   `Reservation`: Represents a booking made by a `Member` for an `Accommodation`. Status flow includes pending, confirmed, completed, cancelled.
+*   `Rating`: Represents a rating given by a `Member` for a completed `Reservation`.
+*   `UniversityLocation`: Represents specific named locations within a university (used for potential distance calculations - functionality not fully tested here).
 
-#### Get CEDARS Specialist Details
-- **URL**: `/cedars-specialists/{id}/`
-- **Method**: GET
-- **Required Role**: `cedars_specialist` only
+## Setup & Running
 
-#### View Managed Accommodations
-- **URL**: `/cedars-specialists/{id}/managed_accommodations/`
-- **Method**: GET
-- **Required Role**: `cedars_specialist` only
+1.  **Prerequisites:**
+    *   Python 3.x
+    *   Django
+    *   Django REST Framework (`djangorestframework`)
+    *   drf-spectacular
+    *   (Review `requirements.txt` for a complete list if available)
 
-**Example**:
-```
-# In your web browser:
-http://localhost:8000/cedars-specialists/1/managed_accommodations/?role=cedars_specialist
-```
+2.  **Navigate to Project Directory:**
+    ```bash
+    cd <path-to-project>/comp3297
+    ```
 
-#### Add Accommodation
-- **URL**: `/cedars-specialists/{id}/add_accommodation/`
-- **Method**: POST
-- **Required Role**: `cedars_specialist` only
-- **Data Parameters**: Same as Create Accommodation
+3.  **Install Dependencies:** (Assuming a `requirements.txt` exists)
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-**Example**:
-```
-# In your web browser:
-1. Navigate to http://localhost:8000/cedars-specialists/1/add_accommodation/?role=cedars_specialist
-2. Fill in the form with accommodation details
-3. Click "POST" to submit
-```
+4.  **Database Setup:**
+    *   The project uses SQLite by default (`db.sqlite3`).
+    *   Apply migrations to create the database schema:
+        ```bash
+        python manage.py migrate
+        ```
 
-#### Update Accommodation
-- **URL**: `/cedars-specialists/{id}/update_accommodation/`
-- **Method**: POST
-- **Required Role**: `cedars_specialist` only
-- **Data Parameters**:
-  - `accommodation_id`: ID of the accommodation to update (required)
-  - Any additional fields to update
+5.  **Create Initial Data (Recommended):**
+    *   **Universities:** Create the University records:
+        ```bash
+        python manage.py shell
+        >>> from unihaven.models import University
+        >>> University.objects.get_or_create(code='HKU', defaults={'name': 'University of Hong Kong'})
+        >>> University.objects.get_or_create(code='CU', defaults={'name': 'Chinese University of Hong Kong'})
+        >>> University.objects.get_or_create(code='HKUST', defaults={'name': 'Hong Kong University of Science and Technology'})
+        >>> exit()
+        ```
+    *   **Superuser (for admin access/testing):**
+        ```bash
+        python manage.py createsuperuser
+        ```
+    *   **Initial Specialists/Members/Owners:** You may need to create initial data via the Django admin (`/admin/`, requires superuser login) or API calls (using the superuser role or after creating initial specialists) to perform some actions. For example, creating members requires a specialist role.
 
-**Example**:
-```
-# In your web browser:
-1. Navigate to http://localhost:8000/cedars-specialists/1/update_accommodation/?role=cedars_specialist
-2. Fill in the form with:
-   - accommodation_id: The ID of the accommodation to update
-   - Any fields you want to change
-3. Click "POST" to submit
-```
+6.  **Run Development Server:**
+    ```bash
+    python manage.py runserver
+    ```
+    The API should be accessible at `http://127.0.0.1:8000/`.
 
-#### Cancel Reservation
-- **URL**: `/cedars-specialists/{id}/cancel_reservation/`
-- **Method**: POST
-- **Required Role**: `cedars_specialist` only
-- **Data Parameters**:
-  - `reservation_id`: ID of the reservation to cancel (required)
+## API Documentation
 
-**Example**:
-```
-# In your web browser:
-1. Navigate to http://localhost:8000/cedars-specialists/1/cancel_reservation/?role=cedars_specialist
-2. Fill in the form with:
-   - reservation_id: The ID of the reservation to cancel
-3. Click "POST" to submit
-```
+The OpenAPI 3 schema is automatically generated using `drf-spectacular`.
 
-### Reservations
+*   **Schema File Generation:** To generate/update the `schema.yml` file in the parent directory:
+    ```bash
+    # Run from the comp3297 directory
+    python manage.py spectacular --file ../schema.yml --color
+    ```
+*   **Swagger UI:** (If configured in `COMP3297/urls.py`) Access interactive documentation via a browser, typically at `/api/schema/swagger-ui/`.
+*   **ReDoc:** (If configured in `COMP3297/urls.py`) Access alternative documentation via a browser, typically at `/api/schema/redoc/`.
 
-#### List Reservations
-- **URL**: `/reservations/`
-- **Method**: GET
-- **Required Role**: `cedars_specialist` only
-- **Parameters**:
-  - `member_id`: Filter by HKU member (optional)
-  - `accommodation_id`: Filter by accommodation (optional)
-  - `status`: Filter by status (optional, values: pending, confirmed, cancelled, completed)
+Refer to the generated `schema.yml` or the UI endpoints for detailed information on all available API endpoints, parameters, request bodies, and response schemas.
 
-**Example**:
-```
-# In your web browser:
-http://localhost:8000/reservations/?role=cedars_specialist&status=pending
-```
+## Testing
 
-#### Get Reservation Details
-- **URL**: `/reservations/{id}/`
-- **Method**: GET
-- **Required Role**: `cedars_specialist` or the reservation's HKU member
+Automated API tests are included.
 
-**Example**:
-```
-# In your web browser:
-http://localhost:8000/reservations/1/?role=cedars_specialist
-```
-
-#### Confirm Reservation
-- **URL**: `/reservations/{id}/confirm/`
-- **Method**: POST
-- **Required Role**: `cedars_specialist` only
-
-**Example**:
-```
-# In your web browser:
-1. Navigate to http://localhost:8000/reservations/1/confirm/?role=cedars_specialist
-2. Click "POST" to confirm the reservation
-```
-
-### Ratings
-
-#### List Ratings
-- **URL**: `/ratings/`
-- **Method**: GET
-- **Required Role**: `hku_member` or `cedars_specialist`
-- **Parameters**:
-  - `reservation_id`: Filter by reservation (optional)
-  - `accommodation_id`: Filter by accommodation (optional)
-  - `member_id`: Filter by HKU member (optional)
-
-**Example**:
-```
-# In your web browser:
-http://localhost:8000/ratings/?role=cedars_specialist&accommodation_id=1
-```
-
-#### Get Rating Details
-- **URL**: `/ratings/{id}/`
-- **Method**: GET
-- **Required Role**: `hku_member` or `cedars_specialist`
-
-**Example**:
-```
-# In your web browser:
-http://localhost:8000/ratings/1/?role=cedars_specialist
-```
-
-## Data Models
-
-### PropertyOwner
-- `id`: Unique identifier
-- `name`: Name of the property owner
-- `phone_no`: Phone number of the property owner
-
-### CEDARSSpecialist
-- `id`: Unique identifier
-- `name`: Name of the CEDARS specialist
-- Methods: addAccommodation(), updateAccommodation(), cancelReservation(), viewReservations(), receiveNotifications()
-
-### Accommodation
-- `type`: Type of accommodation (apartment, house, villa, studio, hostel)
-- `address`: Physical address
-- `latitude`: Latitude coordinate (auto-populated)
-- `longitude`: Longitude coordinate (auto-populated)
-- `geo_address`: Geocoded address (auto-populated)
-- `available_from`: Start date of availability
-- `available_until`: End date of availability
-- `beds`: Number of beds
-- `bedrooms`: Number of bedrooms
-- `daily_price`: Price per day
-- `owner`: Reference to PropertyOwner
-- `specialist`: Reference to CEDARSSpecialist
-
-### HKUMember
-- `uid`: Unique identifier (primary key)
-- `name`: Name of the HKU member
-- Methods: searchAccommodation(), reserveAccommodation(), cancelReservation(), rateAccommodation()
-
-### Reservation
-- `status`: Status of the reservation (pending, confirmed, cancelled, completed)
-- `start_date`: Start date of the reservation
-- `end_date`: End date of the reservation
-- `cancelled_by`: Who cancelled the reservation (if applicable)
-- `member`: Reference to HKUMember
-- `accommodation`: Reference to Accommodation
-
-### Rating
-- `score`: Rating score between 0 and 5
-- `date_rated`: Date when the rating was submitted
-- `comment`: Optional comment for the rating
-- `reservation`: Reference to Reservation
-
-## Notification System
-
-The system automatically sends notifications (emails in production) for the following events:
-
-1. **Reservation Confirmation**: When a new reservation is created
-2. **Status Updates**: When a reservation's status changes (confirmed, cancelled, completed)
-
-In development mode, these notifications are printed to the console.
-
-## Limitations and Notes
-
-1. This API uses role-based access control through query parameters instead of token-based authentication.
-2. Geocoding of addresses is handled automatically for accommodations.
-3. New HKU members are automatically created in the system when they make their first reservation.
-4. Ratings can only be created for reservations with 'completed' status.
-5. All date fields should use the YYYY-MM-DD format.
+*   **Run All Tests:**
+    ```bash
+    # Run from the comp3297 directory
+    python manage.py test unihaven.tests
+    ```
