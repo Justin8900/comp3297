@@ -198,18 +198,13 @@ class Accommodation(models.Model):
 # --- Concrete Member Model --- 
 class Member(models.Model):
     """Concrete model representing a university member."""
-    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True) # Add user link
-    # Assuming UID is unique across ALL universities and can serve as PK
+    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True) 
     uid = models.CharField(max_length=255, primary_key=True)
     name = models.CharField(max_length=255)
-    university = models.ForeignKey(University, on_delete=models.CASCADE, related_name="members") # related_name is OK here
-    # Replace generic contact with specific fields
-    phone_number = models.CharField(max_length=20, blank=True, null=True) # Adjust max_length as needed
-    email = models.EmailField(max_length=254, blank=True, null=True) # Standard max length for emails
+    university = models.ForeignKey(University, on_delete=models.CASCADE, related_name="members") 
+    phone_number = models.CharField(max_length=20, blank=True, null=True) 
+    email = models.EmailField(max_length=254, blank=True, null=True) 
 
-    # Add methods directly here if they are common
-    # e.g., searchAccommodation, reserveAccommodation, etc.
-    # Remember to adapt them if they relied on specific subclass logic before
 
     def __str__(self):
         return f"{self.name} ({self.uid} - {self.university.code})"
@@ -222,7 +217,7 @@ class Member(models.Model):
         # Reserve an accommodation, ensuring it's available at the member's university
         if not accommodation.available_at_universities.filter(pk=self.university.pk).exists():
              raise ValueError(f"Accommodation {accommodation.id} is not available at {self.university.code}")
-        # The view layer should handle overlap checks before calling this
+
         reservation = Reservation.objects.create(
             member=self,
             accommodation=accommodation,
@@ -312,9 +307,7 @@ class Reservation(models.Model):
                  self.university = member_instance.university
              except Member.DoesNotExist:
                  # Handle error: member must exist to save reservation
-                 # Or rely on validation elsewhere to ensure member_id is valid
                  logger.error(f"Attempted to save Reservation with invalid member_id: {self.member_id}")
-                 # Depending on desired behavior, raise error or skip setting uni
                  pass 
         super().save(*args, **kwargs)
 
@@ -332,14 +325,13 @@ class Reservation(models.Model):
              return self
 
         old_status = self.status
-        cancelled_by_user = user_type # Store original requested user type
+        cancelled_by_user = user_type 
         self.status = 'cancelled'
         self.cancelled_by = cancelled_by_user
         self.save()
 
         logger.info(f"Reservation #{self.id} for {self.university.code if self.university else 'Unknown University'} has been cancelled by {cancelled_by_user}.")
         
-        # --- Removed Direct Notification Calls (Moved to ViewSet.perform_destroy) --- 
                 
         return self
 

@@ -13,12 +13,12 @@ from rest_framework import serializers
 from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
 from .models import (
     University, PropertyOwner, Accommodation, Member, Specialist, 
-    Reservation, Rating, UniversityLocation # Added UniversityLocation
+    Reservation, Rating, UniversityLocation 
 )
 from .serializers import (
     PropertyOwnerSerializer, AccommodationSerializer, 
-    MemberSerializer, # Assuming a generic MemberSerializer exists/will be created
-    SpecialistSerializer, # Assuming a generic SpecialistSerializer exists/will be created
+    MemberSerializer, 
+    SpecialistSerializer,
     ReservationSerializer, RatingSerializer,
 )
 from .permissions import (
@@ -33,7 +33,7 @@ from .permissions import (
     CanCreateRating,
     CanAccessRatingObject,
     CanViewAccommodationDetail,
-    get_role_info_from_request # Updated helper function
+    get_role_info_from_request 
 )
 from .utils.geocoding import geocode_address, calculate_distance
 from .utils.notifications import send_reservation_notification, send_member_cancellation_notification
@@ -47,12 +47,7 @@ def get_role_or_403(request):
     uni_code, role_type, role_id = get_role_info_from_request(request)
     if not uni_code or not role_type:
         raise PermissionDenied("Invalid or missing role information in query parameters.")
-    # Optionally fetch University object here if needed frequently, handle ObjectDoesNotExist
-    # try:
-    #     university = University.objects.get(code__iexact=uni_code)
-    # except University.DoesNotExist:
-    #     raise PermissionDenied(f"University code '{uni_code}' not found.")
-    return uni_code, role_type, role_id #, university
+    return uni_code, role_type, role_id 
 
 # API Views
 
@@ -61,7 +56,6 @@ def get_role_or_403(request):
     list=extend_schema(
         summary="List property owners (Specialists Only)",
         description="List all property owners. Requires a Specialist role.",
-        # Explicitly define ONLY the desired parameters for the list view
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)]
     ),
     create=extend_schema(
@@ -97,10 +91,9 @@ class PropertyOwnerViewSet(viewsets.ModelViewSet):
     queryset = PropertyOwner.objects.all().order_by('id')
     serializer_class = PropertyOwnerSerializer
     permission_classes = [IsSpecialist]
-    filter_backends = []  # Override global filter backends
-    pagination_class = None # Override global pagination
+    filter_backends = []  
+    pagination_class = None 
 
-    # Standard methods can rely on permission_classes now, no need to override unless adding logic
 
 
 # --- Accommodation ViewSet ---
@@ -108,7 +101,6 @@ class PropertyOwnerViewSet(viewsets.ModelViewSet):
     list=extend_schema(
         summary="List accommodations by university with filters",
         description="List accommodations available at the user's university, with optional filters for type, beds, bedrooms, price, availability dates, rating, and distance from a university location.",
-        # Explicitly define ONLY the desired parameters for the list view
         parameters=[
             OpenApiParameter(name="role", description="User role (format: 'uni_code:member:uid' or 'uni_code:specialist[:id]')", required=True, type=str),
             OpenApiParameter(name="type", description="Filter by accommodation type (e.g., 'apartment', 'house', 'room')", required=False, type=str, enum=['apartment', 'house', 'room']),
@@ -156,10 +148,10 @@ class AccommodationViewSet(viewsets.ModelViewSet):
     ViewSet for managing accommodations.
     Permissions vary by action. Filtering by university is applied.
     """
-    queryset = Accommodation.objects.all().order_by('id') # Base queryset
+    queryset = Accommodation.objects.all().order_by('id') 
     serializer_class = AccommodationSerializer
-    filter_backends = []  # Override global filter backends
-    pagination_class = None # Override global pagination
+    filter_backends = []  
+    pagination_class = None 
 
     def list(self, request, *args, **kwargs):
         """List accommodations with filters for type, beds, bedrooms, price, dates, rating, and distance."""
@@ -280,29 +272,23 @@ class AccommodationViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         """Assign permissions based on action using new classes."""
-        if self.action in ['list', 'nearby']: # Added 'nearby'
+        if self.action in ['list', 'nearby']:
             # Both members and specialists can view, filtering happens in get_queryset
             permission_classes_list = [IsMemberOrSpecialist]
         elif self.action in ['create', 'update', 'partial_update', 'destroy']:
             # Only specialists associated with the accommodation can modify
             permission_classes_list = [IsSpecialistManagingAccommodation]
         elif self.action == 'reservations': # Custom action for reservations on an accommodation
-            # Decide who can see this - likely specialists managing it?
             permission_classes_list = [IsSpecialistManagingAccommodation]
         elif self.action == 'retrieve': # Add specific permission for retrieve
-            # Base check first (is member or specialist)
-            # Object check happens in retrieve method via check_object_permissions
             permission_classes_list = [IsMemberOrSpecialist, CanViewAccommodationDetail]
         else:
-            # Default deny: Return empty list, DRF defaults usually deny if no perms grant access.
             permission_classes_list = []
-            # permission_classes = [permissions.IsAdminUser] # Alternative: only allow admin
         return [permission() for permission in permission_classes_list]
 
     def get_queryset(self):
         """Filter accommodations based on the user's university for list/nearby actions."""
         queryset = super().get_queryset()
-        # Only apply university filtering for list/nearby views
         if self.action in ['list', 'nearby']:
             try:
                 uni_code, role_type, role_id = get_role_or_403(self.request)
@@ -311,8 +297,6 @@ class AccommodationViewSet(viewsets.ModelViewSet):
             except PermissionDenied:
                 # If role is invalid/missing, return empty queryset for list actions
                 queryset = queryset.none()
-        # For retrieve, update, destroy, etc., return the base queryset.
-        # get_object() will fetch the specific instance, and permissions handle access.
         return queryset.distinct() # Use distinct because of M2M filtering
 
     def retrieve(self, request, *args, **kwargs):
@@ -341,7 +325,6 @@ class AccommodationViewSet(viewsets.ModelViewSet):
              raise serializers.ValidationError(f"Specialist's university code '{uni_code}' not found.")
 
         # Validate that the specialist's university is in the M2M list being set
-        # Serializer validation is a better place for this, but we check here too for safety.
         universities_data = serializer.validated_data.get('available_at_universities', [])
         university_pks = [uni.pk for uni in universities_data]
 
@@ -349,38 +332,31 @@ class AccommodationViewSet(viewsets.ModelViewSet):
              raise serializers.ValidationError({
                  "available_at_universities": f"Specialist from {uni_code} cannot create accommodation without listing it under their own university."})
 
-        # --- Option 1 Modification: Strict Creation Scope ---
         # Ensure available_at_universities ONLY contains the specialist's uni code during CREATE
         if len(universities_data) != 1 or universities_data[0].code.lower() != uni_code.lower():
             raise serializers.ValidationError({
                 "available_at_universities": f"During creation, this field must contain only the creating specialist's university code ('{uni_code}')."
             })
-        # --- End Modification ---
 
-        # Save the instance first
         accommodation = serializer.save()
 
         # Handle geocoding after save
-        if accommodation.address: # Or use structured address fields? update_geocoding needs check
+        if accommodation.address: 
             try:
-                # Assuming update_geocoding now handles structured address or needs update
                 accommodation.update_geocoding() 
             except Exception as e:
                 logger.error(f"Geocoding failed for accommodation {accommodation.id}: {e}")
-                # Decide if creation should fail or just log the error
 
     def perform_update(self, serializer):
         """Handle geocoding on update if address changes."""
         # logger.info(f"[Perform Update] Validated data received: {serializer.validated_data}") # Log validated data
-        # Permissions checked by get_permissions and IsSpecialistManagingAccommodation
-        address_changed = 'address' in serializer.validated_data # Or check specific fields
-        
-        # --- Validation moved to partial_update method --- 
+        address_changed = 'address' in serializer.validated_data 
+
 
         accommodation = serializer.save()
 
         # Re-geocode if address components changed
-        if address_changed and accommodation.address: # Or check specific fields
+        if address_changed and accommodation.address: 
              try:
                  accommodation.update_geocoding()
              except Exception as e:
@@ -388,7 +364,6 @@ class AccommodationViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         """Handle PATCH requests, validating university additions before proceeding."""
-        # --- Option 1 Modification: Validate adding universities BEFORE serializer --- 
         if 'available_at_universities' in request.data:
             try:
                 instance = self.get_object() # Get current object
@@ -417,18 +392,16 @@ class AccommodationViewSet(viewsets.ModelViewSet):
             except Exception as e:
                  logger.error(f"Error checking university additions during PATCH for Acc {instance.id}: {e}")
                  return Response({"detail": "An error occurred while processing university assignments."}, status=status.HTTP_400_BAD_REQUEST)
-        # --- End Modification ---
 
         # If validation passes or wasn't needed, proceed with standard partial update
         return super().partial_update(request, *args, **kwargs)
 
 
-# --- Member ViewSet (Now uses concrete Member model) ---
+# --- Member ViewSet ---
 @extend_schema_view(
     list=extend_schema(
         summary="List members (Specialists Only)",
         description="List all members within the specialist's university.",
-        # Explicitly define ONLY the desired parameters for the list view
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)]
     ),
     create=extend_schema(
@@ -465,8 +438,8 @@ class MemberViewSet(viewsets.ModelViewSet):
     queryset = Member.objects.all() 
     serializer_class = MemberSerializer 
     lookup_field = 'uid' 
-    filter_backends = []  # Override global filter backends
-    pagination_class = None # Override global pagination
+    filter_backends = []  
+    pagination_class = None 
 
     def get_permissions(self):
         """Assign permissions based on action."""
@@ -496,8 +469,7 @@ class MemberViewSet(viewsets.ModelViewSet):
                     queryset = queryset.none()
             except PermissionDenied:
                 queryset = queryset.none()
-        # For retrieve, update, destroy, etc., return the base queryset.
-        # get_object() will fetch the specific instance, and permissions handle access.
+        
         return queryset
 
     def perform_create(self, serializer):
@@ -518,7 +490,6 @@ class MemberViewSet(viewsets.ModelViewSet):
         # Associate the member with the specialist's university
         serializer.save(university=university)
 
-    # retrieve, update, partial_update, destroy rely on CanAccessMemberObject permission
 
     @extend_schema(
         summary="List reservations for a member",
@@ -531,7 +502,7 @@ class MemberViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=['get'], permission_classes=[CanAccessMemberObject]) 
     def reservations(self, request, uid=None):
-        member = self.get_object() # Fetches Member instance using uid lookup field
+        member = self.get_object() 
         queryset = Reservation.objects.filter(member=member).order_by('-created_at')
         status_filter = request.query_params.get('status')
         if status_filter:
@@ -540,19 +511,17 @@ class MemberViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-# --- Specialist ViewSet (Generalized from CEDARSSpecialistViewSet) ---
+# --- Specialist ViewSet ---
 @extend_schema_view(
     list=extend_schema(
         summary="List specialists (Specialists Only)",
         description="List all specialists within the requesting specialist's university.",
-        # Explicitly define ONLY the desired parameters for the list view
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)]
     ),
     create=extend_schema(
         summary="Create specialist (Specialists Only)",
         description="Create a new specialist within the requesting specialist's university. Requires Specialist role.", # Updated description
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)],
-        # exclude=True # Removed exclude
     ),
     retrieve=extend_schema(
         summary="Retrieve specialist (Specialists Only)",
@@ -563,22 +532,22 @@ class MemberViewSet(viewsets.ModelViewSet):
         summary="Update specialist (Admin/Superusers Only - TBD)",
         description="Update a specialist by ID. Typically restricted to superusers or self.",
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)],
-         exclude=True # Exclude for now
+         exclude=True 
     ),
     partial_update=extend_schema(
         summary="Partially update specialist (Admin/Superusers Only - TBD)",
         description="Partially update a specialist by ID. Typically restricted to superusers or self.",
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)],
-         exclude=True # Exclude for now
+         exclude=True 
     ),
     destroy=extend_schema(
         summary="Delete specialist (Admin/Superusers Only - TBD)",
         description="Delete a specialist by ID. Typically restricted to superusers.",
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)],
-         exclude=True # Exclude for now
+         exclude=True
     )
 )
-# Rename CEDARSSpecialistViewSet -> SpecialistViewSet
+
 class SpecialistViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing university specialists.
@@ -587,22 +556,21 @@ class SpecialistViewSet(viewsets.ModelViewSet):
     queryset = Specialist.objects.all().order_by('university__code', 'name')
     serializer_class = SpecialistSerializer # Use generic SpecialistSerializer
     permission_classes = [IsSpecialist] # Base requirement
-    filter_backends = []  # Override global filter backends
-    pagination_class = None # Override global pagination
+    filter_backends = []  
+    pagination_class = None 
 
     def get_permissions(self):
         """Assign permissions - Restrict modifications for now."""
         if self.action in ['list', 'retrieve']:
             # Specialists can view others in their university
             permission_classes_list = [IsSpecialist] 
-        elif self.action == 'create': # Changed condition
+        elif self.action == 'create': 
             # Allow specialists to create other specialists in their uni
-            permission_classes_list = [IsSpecialist] # Changed from IsAdminUser
+            permission_classes_list = [IsSpecialist] 
         elif self.action in ['update', 'partial_update', 'destroy']:
-            # Only allow Admins/Superusers for now - needs proper implementation
+          
             permission_classes_list = [permissions.IsAdminUser] 
         else:
-            # Replace DenyAll with empty list
             permission_classes_list = []
         return [permission() for permission in permission_classes_list]
 
@@ -630,7 +598,6 @@ class SpecialistViewSet(viewsets.ModelViewSet):
         except PermissionDenied as e:
             raise serializers.ValidationError({"detail": str(e)}) from e
 
-        # Double-check role type although permission class should handle it
         if role_type != 'specialist':
             raise PermissionDenied("Only Specialists can create other specialists.")
 
@@ -648,7 +615,6 @@ class SpecialistViewSet(viewsets.ModelViewSet):
     list=extend_schema(
         summary="List reservations (Members see own, Specialists see their Uni's)",
         description="List reservations based on role. Members see their own. Specialists see all reservations within their university.",
-        # Explicitly define ONLY the desired parameters for the list view
         parameters=[
             OpenApiParameter(name="role", description="User role (format: 'uni_code:member:uid' or 'uni_code:specialist[:id]')", required=True, type=str),
             OpenApiParameter(name="member_id", description="Filter by member UID (Specialists only)", required=False, type=str),
@@ -682,7 +648,7 @@ class SpecialistViewSet(viewsets.ModelViewSet):
         summary="Delete reservation (Disallowed)",
         description="Direct deletion of reservations via DELETE is disallowed. Use PATCH with status 'cancelled' to cancel.",
         parameters=[OpenApiParameter(name="role", description="User role (format: 'uni_code:specialist[:id]')", required=True, type=str)],
-        exclude=True # Exclude from schema
+        exclude=True 
     ),
 )
 class ReservationViewSet(viewsets.ModelViewSet):
@@ -691,21 +657,20 @@ class ReservationViewSet(viewsets.ModelViewSet):
     """
     queryset = Reservation.objects.all().order_by('-created_at')
     serializer_class = ReservationSerializer 
-    filter_backends = []  # Override global filter backends
-    pagination_class = None # Override global pagination
+    filter_backends = [] 
+    pagination_class = None 
 
     def get_permissions(self):
         """Assign permissions based on action."""
         if self.action in ['list', 'create']:
             # Members (for self) or Specialists (for their uni)
             permission_classes_list = [CanListCreateReservations] 
-        elif self.action in ['retrieve', 'update', 'partial_update']: # Removed 'destroy' and custom actions
+        elif self.action in ['retrieve', 'update', 'partial_update']: 
             # Member owner or Specialist from the reservation's uni
             permission_classes_list = [CanAccessReservationObject] 
         elif self.action == 'destroy': # Explicitly handle destroy
             # Disallow destroy for normal users, or assign specific admin permission
-             permission_classes_list = [permissions.IsAdminUser] # Example: Only Admins can truly delete
-            # Alternatively: permission_classes = [] to rely on the 405 from the overridden method
+             permission_classes_list = [permissions.IsAdminUser] 
         else:
             # Default deny for any other custom actions not defined
             permission_classes_list = []
@@ -741,9 +706,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
 
             except PermissionDenied:
                 queryset = queryset.none()
-        
-        # For retrieve, update, partial_update, destroy, return unfiltered queryset.
-        # Object-level permissions (CanAccessReservationObject) will handle access control.
+   
         return queryset
 
     def perform_create(self, serializer):
@@ -761,10 +724,8 @@ class ReservationViewSet(viewsets.ModelViewSet):
             if not member_uid_to_reserve:
                  raise serializers.ValidationError("Specialists must provide 'member_uid' in the request body to create a reservation.")
         else:
-             raise PermissionDenied("Invalid role type for creating reservation.") # Should be caught by permissions
+             raise PermissionDenied("Invalid role type for creating reservation.") 
 
-        # Remove member_uid from validated_data as it's not a model field
-        # We already used it to find the member object
         serializer.validated_data.pop('member_uid', None)
 
         # Find the member using the concrete Member model
@@ -782,14 +743,14 @@ class ReservationViewSet(viewsets.ModelViewSet):
              else:
                  raise serializers.ValidationError(f"Member with UID '{member_uid_to_reserve}' not found or does not belong to university '{uni_code}'.")
 
-        # Get accommodation (serializer validation should ensure it exists)
+        # Get accommodation
         accommodation = serializer.validated_data['accommodation']
         
         # Validate accommodation availability at the member's university
         if not accommodation.available_at_universities.filter(pk=member.university.pk).exists():
              raise serializers.ValidationError(f"Accommodation {accommodation.id} is not available at university {member.university.code}.")
 
-        # Check for overlapping reservations (basic check, might need more robust logic)
+        # Check for overlapping reservations
         start_date = serializer.validated_data['start_date']
         end_date = serializer.validated_data['end_date']
         overlaps = Reservation.objects.filter(
@@ -806,7 +767,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
         # post_save signal in models.py handles notification
 
         # --- Send Notification for New Reservation ---
-        instance = serializer.instance # Get the created instance
+        instance = serializer.instance 
         subject = f"New Pending Reservation at {instance.university.code}: #{instance.id}"
         message_template = f"""
         A new reservation requires confirmation:
@@ -824,47 +785,33 @@ class ReservationViewSet(viewsets.ModelViewSet):
         The UniHaven Team
         """
         send_reservation_notification(instance, subject, message_template)
-        # --- End Notification --- 
+
 
     def perform_destroy(self, instance):
-        # This method is kept but will be blocked by the destroy method override
-        # Original notification logic can be moved or adapted for updates
+        
         logger.warning(f"Attempted DELETE on Reservation {instance.id}, which is now disallowed. Cancellation handled via PATCH/PUT.")
-        # Keep notification logic here for reference or potential reuse if needed elsewhere
+        
         try:
             uni_code, role_type, role_id = get_role_or_403(self.request)
             cancelling_user_type = role_type # member or specialist
         except PermissionDenied:
             cancelling_user_type = 'system' # Or handle error appropriately
         
-        # --- Reference Notification Logic (moved to perform_update) ---
-        # subject_spec = f"Reservation Cancelled at {instance.university.code}: #{instance.id}"
-        # message_spec = f"""..."""
-        # send_reservation_notification(instance, subject_spec, message_spec)
-        # if cancelling_user_type != 'member':
-        #     if hasattr(instance, 'member') and instance.member:
-        #         send_member_cancellation_notification(instance)
-        # --- End Reference --- 
-
-        # Instead of calling cancel or delete, we prevent the action
-        # instance.cancel(user_type=cancelling_user_type)
-        pass # Do nothing here, destroy override handles prevention
+        pass 
 
     def destroy(self, request, *args, **kwargs):
-        # Override destroy action to explicitly disallow DELETE method
         return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
     
-    # Add perform_update to handle status changes, including cancellation
+
     def perform_update(self, serializer):
         """Handle updates, specifically checking for cancellation status change."""
         instance = serializer.instance
         old_status = instance.status
         new_status = serializer.validated_data.get('status', old_status)
-        cancelling_user_type = None # Initialize to ensure it exists
+        cancelling_user_type = None 
 
-        # Reject changes if already completed or cancelled
         if old_status in ['completed', 'cancelled'] and old_status != new_status:
-             # Raise validation error associated with the 'status' field
+            
              raise serializers.ValidationError({
                  'status': f"cannot change status from '{old_status}'."
              })
@@ -917,7 +864,6 @@ The UniHaven Team
             logger.error(f"Error sending cancellation notification for Res {instance.id}: {e}")
         # --- End Notifications ---
 
-        # Proceed with the save operation for all valid updates
         serializer.save()
 
 
@@ -926,13 +872,13 @@ The UniHaven Team
     list=extend_schema(
         summary="List ratings (Public within University)",
         description="List ratings associated with the user's university. Visible to all Members and Specialists of that university. Can be filtered by accommodation_id.",
-        # Explicitly define ONLY the desired parameters for the list view
+
         parameters=[
             OpenApiParameter(name="role", description="User role (format: 'uni_code:member:uid' or 'uni_code:specialist[:id]')", required=True, type=str),
             OpenApiParameter(name="reservation_id", description="Filter by reservation ID", required=False, type=int),
             OpenApiParameter(name="accommodation_id", description="Filter by accommodation ID", required=False, type=int),
             OpenApiParameter(name="member_id", description="Filter by member UID (Specialists only)", required=False, type=str)
-            # Parameters 'page', 'search', 'ordering' are omitted here, so they won't appear in the schema for list
+            
         ]
     ),
      create=extend_schema( 
@@ -972,8 +918,8 @@ class RatingViewSet(viewsets.ModelViewSet):
     """
     queryset = Rating.objects.all().order_by('-date_rated')
     serializer_class = RatingSerializer
-    filter_backends = []  # Override global filter backends
-    pagination_class = None # Override global pagination
+    filter_backends = []  
+    pagination_class = None 
 
     def get_permissions(self):
         """Assign permissions based on action."""
@@ -987,11 +933,10 @@ class RatingViewSet(viewsets.ModelViewSet):
             permission_classes_list = [CanAccessRatingObject]
         elif self.action == 'destroy':
              # Allow specialists from the rating's uni to delete
-             permission_classes_list = [CanAccessRatingObject] # Re-use, but need role check inside? No, checks uni match
-             # Add check inside destroy if needed: if role != specialist: raise PermissionDenied
+             permission_classes_list = [CanAccessRatingObject] 
         elif self.action in ['update', 'partial_update']:
              # Disallow updates for now, or use IsAdminUser
-             permission_classes_list = [permissions.IsAdminUser] # Example: restrict updates
+             permission_classes_list = [permissions.IsAdminUser] 
         else:
             # Replace DenyAll with empty list
             permission_classes_list = []
@@ -1005,10 +950,8 @@ class RatingViewSet(viewsets.ModelViewSet):
         except PermissionDenied:
              return queryset.none()
 
-        # Apply university filter for ALL valid roles (Member or Specialist)
         queryset = queryset.filter(reservation__university__code__iexact=uni_code)
 
-        # Apply common query param filters (available to both roles)
         accommodation_filter = self.request.query_params.get('accommodation_id')
         reservation_filter = self.request.query_params.get('reservation_id')
 
@@ -1016,9 +959,7 @@ class RatingViewSet(viewsets.ModelViewSet):
              try:
                  queryset = queryset.filter(reservation__accommodation_id=int(accommodation_filter))
              except ValueError:
-                 # Handle invalid integer input gracefully, maybe ignore filter or raise specific error
                  logger.warning(f"Invalid accommodation_id filter value: {accommodation_filter}")
-                 # Return empty queryset or ignore filter? Let's ignore for now.
                  pass 
         if reservation_filter:
              try:
@@ -1032,10 +973,6 @@ class RatingViewSet(viewsets.ModelViewSet):
             member_filter = self.request.query_params.get('member_id')
             if member_filter:
                  queryset = queryset.filter(reservation__member__uid=member_filter)
-        # else: (role_type == 'member')
-            # Removed the filter: queryset = queryset.filter(reservation__member__uid=role_id)
-            # Now members see all ratings from their university
-
         return queryset
 
     def perform_create(self, serializer):
@@ -1051,52 +988,37 @@ class RatingViewSet(viewsets.ModelViewSet):
         # Get reservation from serializer (validated to exist)
         reservation = serializer.validated_data['reservation']
 
-        # 1. Check Ownership: Does the reservation belong to the member making the request?
+        # 1. Check Ownership
         if reservation.member.uid != role_id:
              raise serializers.ValidationError("You can only rate your own reservations.")
              
-        # 2. Check University Match (belt-and-suspenders check)
+        # 2. Check University Match 
         if reservation.university.code.lower() != uni_code.lower():
              raise serializers.ValidationError("Cannot rate a reservation from a different university.")
 
-        # 3. Check Status: Is the reservation completed?
+        # 3. Check Status
         if reservation.status != 'completed':
             raise serializers.ValidationError("You can only rate completed reservations.")
 
-        # 4. Check if Already Rated (OneToOneField should handle this at DB level, but check anyway)
+        # 4. Check if Already Rated 
         if hasattr(reservation, 'rating'):
              raise serializers.ValidationError("This reservation has already been rated.")
 
-        # Save the rating (implicitly linked to reservation's member and uni)
-        serializer.save() # Don't need to pass user/uni, it's inferred from reservation
+        # Save the rating 
+        serializer.save() 
 
     def perform_destroy(self, instance):
          """Ensure only specialists are deleting ratings."""
          try:
              uni_code, role_type, role_id = get_role_or_403(self.request)
              if role_type != 'specialist':
-                 # This should be caught by get_permissions ideally, but double-check
                  raise PermissionDenied("Only specialists can delete ratings.") 
          except PermissionDenied as e:
-             # Re-raise to prevent deletion
              raise e
          
-         # If specialist check passes (and CanAccessRatingObject check passed), proceed
          super().perform_destroy(instance)
 
 
-# --- Remove old manual actions if they are now handled by standard methods ---
-# e.g., create_reservation, cancel, create_rating might be removable if standard
-# create/destroy/custom actions cover them with new permissions.
-# Review ReservationViewSet actions:
-# - create_reservation -> Replaced by standard create + perform_create logic
-# - cancel -> Refactored using custom action and CanAccessReservationObject
-# Review RatingViewSet actions:
-# - create_rating -> Replaced by standard create + perform_create logic
-
-
-# --- HTML Views (Keep or Remove?) ---
-# These might need updating or removal depending on project scope
 
 class AccommodationListView(ListView):
     model = Accommodation
@@ -1110,12 +1032,9 @@ class AccommodationListView(ListView):
 # Render basic search page
 @api_view(['GET'])
 @renderer_classes([TemplateHTMLRenderer, JSONRenderer])
-@permission_classes([permissions.AllowAny]) # Or use appropriate role check
+@permission_classes([permissions.AllowAny]) 
 def accommodation_search_view(request):
-    # This likely needs role checking and context passing for a real app
     context = {'some_key': 'some_value'} 
-    # If HTML requested, render template
     if request.accepted_renderer.format == 'html':
         return Response(context, template_name='unihaven/accommodation_search.html')
-    # Otherwise, maybe return search options as JSON?
     return Response({"message": "Use the API endpoint /accommodations/search/ for JSON search."})

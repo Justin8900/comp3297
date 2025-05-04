@@ -321,5 +321,3 @@ class RatingVisibilityTests(RatingVisibilityBaseTestCase): # Use new base class
         self.assertEqual(response_specialist.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Rating.objects.filter(id=rating_to_delete.id).exists(), "Rating should be deleted by specialist")
 
-# Note: Original RatingCreateTests might need adjustments if its setup relied on specifics now changed
-# or if it needs to run independently.

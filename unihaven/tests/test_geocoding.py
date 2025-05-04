@@ -14,7 +14,6 @@ class TestGeocodingDistance(unittest.TestCase):
         self.assertAlmostEqual(distance, 0.0, delta=0.001)
     
         # Known distance between two Hong Kong locations
-        # Use more accurate HKU coordinates
         # HKU (~22.283, 114.137) to HKUST (22.3363, 114.2634)
         # Expected: ~14.1 km (original expectation)
         distance = calculate_distance(22.2831, 114.1372, 22.3363, 114.2634) # Corrected HKU lat
