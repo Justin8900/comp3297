@@ -53,7 +53,7 @@ class SpecialistTests(APITestCase):
         url = f"/specialists/?role=cu:specialist:{self.cu_specialist1.id}"
         data = {
             "name": "New CU Specialist",
-            "email": "new.cu.spec@cu.hk", # Assuming email/phone are needed or handled by serializer
+            "email": "new.cu.spec@cu.hk", 
             "phone": "11223344"
         }
         response = self.client.post(url, data, format='json')

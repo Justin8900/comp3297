@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Unihaven API
-  version: 1.0.0
+  version: 2.0.0
   description: "\nAPI for Unihaven project - a platform for university student accommodation\
     \ management.\n\n## Role-Based Access Control\n\nThis API implements role-based\
     \ access control through query parameters. For most endpoints, you must include\
