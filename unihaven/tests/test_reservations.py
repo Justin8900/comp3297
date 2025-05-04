@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from ..models import University, PropertyOwner, Member, Specialist, Accommodation, Reservation
 from unittest.mock import patch
+from datetime import date, timedelta
 
 class ReservationBaseTestCase(APITestCase):
 
@@ -45,7 +46,7 @@ class ReservationBaseTestCase(APITestCase):
         cls.acc1_hku_only = Accommodation.objects.create(
             type='studio', address='8 University Drive, Pok Fu Lam', owner=cls.owner,
             flat_number='S1', floor_number='1S',
-            available_from='2025-01-01', available_until='2025-12-31',
+            available_from='2025-10-01', available_until='2025-12-31',
             beds=1, bedrooms=1, daily_price='120.00'
             )
         cls.acc1_hku_only.available_at_universities.add(cls.hku)
@@ -63,7 +64,7 @@ class ReservationBaseTestCase(APITestCase):
         cls.acc3_all_unis = Accommodation.objects.create(
             type='shared', address='9 Clear Water Bay Road, Sai Kung', owner=cls.owner,
             flat_number='SH3', floor_number='3S',
-            available_from='2025-01-01', available_until='2025-12-31',
+            available_from='2025-01-01', available_until='2026-06-30',
             beds=3, bedrooms=1, daily_price='160.00'
             )
         cls.acc3_all_unis.available_at_universities.add(cls.hku, cls.cu, cls.hkust)
@@ -149,24 +150,34 @@ class ReservationMemberActionsTests(ReservationBaseTestCase):
         role = f"hku:member:{self.hku_member.uid}"
         url = reverse('reservation-list')
         url_with_role = f"{url}?role={role}"
+        # Use different, valid dates for self.acc1 to avoid overlap with setUpTestData
         data = {
-            "accommodation": self.acc3_all_unis.id,
-            "university": self.hku.code,
-            "start_date": "2026-02-01",
-            "end_date": "2026-02-10"
+            'accommodation': self.acc1_hku_only.id,
+            'start_date': date(2025, 12, 1).strftime('%Y-%m-%d'), 
+            'end_date': date(2025, 12, 10).strftime('%Y-%m-%d'),
         }
+        self.client.credentials(HTTP_AUTHORIZATION=f'Role {role}')
         response = self.client.post(url_with_role, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         # Verify the reservation is created
         reservation = Reservation.objects.get(pk=response.data['id'])
         self.assertEqual(reservation.member, self.hku_member)
-        self.assertEqual(reservation.accommodation, self.acc3_all_unis)
+        self.assertEqual(reservation.accommodation, self.acc1_hku_only)
         self.assertEqual(reservation.university, self.hku)
         self.assertEqual(reservation.status, 'pending')  # Default status for new reservations
         self.assertEqual(response.data['start_date'], data['start_date'])
         self.assertEqual(response.data['end_date'], data['end_date'])
         self.assertEqual(reservation.start_date.strftime('%Y-%m-%d'), data['start_date'])
         self.assertEqual(reservation.end_date.strftime('%Y-%m-%d'), data['end_date'])
+        self.assertEqual(len(mail.outbox), 2)
+        # Check Specialist Email
+        email = mail.outbox[0]
+        self.assertIn(self.hku_specialist.user.email, email.to)
+        self.assertIn("New Pending Reservation", email.subject)
+        # Check Member Email
+        member_email = mail.outbox[1]
+        self.assertIn(self.hku_member.user.email, member_email.to)
+        self.assertIn("Reservation Received", member_email.subject)
 
     def test_list_reservations(self):
         """Verify member can list their own reservations (GET)."""
@@ -175,8 +186,9 @@ class ReservationMemberActionsTests(ReservationBaseTestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('results', response.data)
-        results = response.data['results']
+        # Direct list access, no pagination
+        self.assertIsInstance(response.data, list) 
+        results = response.data 
         reservation_ids = {res['id'] for res in results}
 
         # Check expected reservations are present
@@ -192,6 +204,57 @@ class ReservationMemberActionsTests(ReservationBaseTestCase):
         statuses = {res['id']: res['status'] for res in results}
         self.assertEqual(statuses.get(self.res_hku_pending.id), 'pending')
         self.assertEqual(statuses.get(self.res_hku_confirmed_for_cancel.id), 'confirmed')
+
+    def test_create_reservation_fails_overlap(self):
+        """Verify creating a reservation fails if it overlaps with an existing one for the same accommodation."""
+        role = f"hku:member:{self.hku_member.uid}"
+        url = reverse('reservation-list') + f"?role={role}"
+        # Dates overlapping with self.res_hku_pending (2025-11-01 to 2025-11-10)
+        data = {
+            'accommodation': self.acc1_hku_only.id,
+            'start_date': date(2025, 11, 5).strftime('%Y-%m-%d'), # Overlaps 
+            'end_date': date(2025, 11, 15).strftime('%Y-%m-%d'),  # Within availability, but overlaps res
+        }
+        response = self.client.post(url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        # Check for the specific overlap error message from the serializer
+        self.assertIn("existing reservation", str(response.data).lower())
+
+    def test_create_reservation_fails_outside_availability(self):
+        """Verify creating a reservation fails if dates are outside accommodation availability."""
+        role = f"hku:member:{self.hku_member.uid}"
+        url = reverse('reservation-list') + f"?role={role}"
+        # Ensure we have date objects for calculations
+        acc1_available_from = self.acc1_hku_only.available_from
+        acc1_available_until = self.acc1_hku_only.available_until
+        # Convert if they are not already date objects (DateField should return date objects)
+        if isinstance(acc1_available_from, str):
+            acc1_available_from = date.fromisoformat(acc1_available_from)
+        if isinstance(acc1_available_until, str):
+            acc1_available_until = date.fromisoformat(acc1_available_until)
+
+        # 1. Test start date before accommodation available_from
+        data_early = {
+            'accommodation': self.acc1_hku_only.id,
+            'start_date': (acc1_available_from - timedelta(days=5)).strftime('%Y-%m-%d'), 
+            'end_date': (acc1_available_from + timedelta(days=5)).strftime('%Y-%m-%d'), 
+        }
+        response_early = self.client.post(url, data_early, format='json')
+        self.assertEqual(response_early.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("start_date", response_early.data)
+        self.assertIn(f"not available until {acc1_available_from}", str(response_early.data['start_date']).lower())
+
+        # 2. Test end date after accommodation available_until
+        data_late = {
+            'accommodation': self.acc1_hku_only.id,
+            'start_date': (acc1_available_until - timedelta(days=5)).strftime('%Y-%m-%d'), 
+            'end_date': (acc1_available_until + timedelta(days=5)).strftime('%Y-%m-%d'),
+        }
+        response_late = self.client.post(url, data_late, format='json')
+        self.assertEqual(response_late.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("end_date", response_late.data)
+        self.assertIn(f"only available until {acc1_available_until}", str(response_late.data['end_date']).lower())
 
 class ReservationSpecialistActionsTests(ReservationBaseTestCase):
 
@@ -270,10 +333,14 @@ class ReservationNotificationTests(ReservationBaseTestCase):
         }
         response = self.client.post(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(len(mail.outbox), 2) # Updated: Expect 2 emails (Specialist + Member)
         email = mail.outbox[0]
         self.assertIn(self.hku_specialist.user.email, email.to)
         self.assertIn("New Pending Reservation", email.subject)
+        # Check member email too
+        member_email = mail.outbox[1]
+        self.assertIn(self.hku_member.user.email, member_email.to)
+        self.assertIn("Reservation Received", member_email.subject)
 
     def test_notification_sent_on_specialist_cancel(self):
         """Verify email notification is sent to member on specialist cancellation via PATCH."""
@@ -300,11 +367,13 @@ class ReservationNotificationTests(ReservationBaseTestCase):
         # Use the PENDING reservation for member cancellation test
         url = self._get_url(role, self.res_hku_pending.id) 
         data = {'status': 'cancelled'}
-        response = self.client.patch(url, data, format='json') # Use PATCH
+        response = self.client.patch(url, data, format='json')
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK) # Expect 200
-        self.assertEqual(len(mail.outbox), 1) # Should be 1 email sent (to specialists only)
-        email = mail.outbox[0]
-        self.assertIn(self.hku_specialist.user.email, email.to)
-        self.assertNotIn(self.hku_member.user.email, email.to)
-        self.assertIn("Reservation Cancelled", email.subject)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 2)
+        # Check specialist email
+        self.assertIn(self.hku_specialist.user.email, mail.outbox[0].to)
+        self.assertIn(f"Reservation Cancelled at {self.hku.code}", mail.outbox[0].subject)
+        # Check member email
+        self.assertIn(self.hku_member.user.email, mail.outbox[1].to)
+        self.assertIn(f"Reservation Cancelled: UniHaven Booking", mail.outbox[1].subject)

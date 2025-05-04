@@ -8,8 +8,6 @@ e.g., 'hku:member:1234567', 'cuhk:specialist:89'
 """
 
 from rest_framework import permissions
-from .models import Reservation, Rating, Accommodation, Member, Specialist, University # Use Member instead of BaseMember
-from django.core.exceptions import ObjectDoesNotExist
 import logging
 
 logger = logging.getLogger(__name__)
@@ -293,21 +291,8 @@ class CanCreateRating(BaseRolePermission):
         uni_code, role_type, role_id = self.get_role_info(request)
         if not (uni_code and role_type == 'member' and role_id):
             return False
-        
-        # Additional check: Can this specific member create a rating for the reservation 
-        # specified in the request body? This often needs to be checked in the view's perform_create
-        # or the serializer's validate method, as we don't have the reservation object here.
-        # We know they *are* a member, which is the basic requirement.
         return True 
-        # Example check if reservation_id was in query params (not typical for POST):
-        # reservation_id = request.query_params.get('reservation_id')
-        # if reservation_id:
-        #     try:
-        #         res = Reservation.objects.get(id=reservation_id, member__uid=role_id, member__university__code=uni_code)
-        #         return res.status == 'completed' 
-        #     except Reservation.DoesNotExist:
-        #         return False
-        # return False # Deny if reservation_id not provided or doesn't match
+
 
 class CanAccessRatingObject(BaseRolePermission):
     """
@@ -382,14 +367,3 @@ class CanViewAccommodationDetail(BaseRolePermission):
         logger.debug(f"Is available at {uni_code}? {is_available}")
         logger.debug("--- End Check --- ")
         return is_available
-
-# Remove or comment out deprecated/unused classes if they exist
-# --- DEPRECATED / UNUSED --- 
-# class IsAnyCEDARSSpecialist ...
-# class IsAnyHKUMemberOrCEDARSSpecialist ...
-# class CanRetrieveUpdateHKUMember ...
-# class CanListReservations ... (Replaced by CanListCreateReservations)
-# class CanAccessReservationObject ... (Replaced by new version)
-# class CanListRatings ... (Replaced by new version)
-# class CanCreateRating ... (Replaced by new version)
-# class CanAccessRatingObject ... (Replaced by new version) 

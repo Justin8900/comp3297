@@ -24,16 +24,22 @@ class SpecialistTests(APITestCase):
     
     def test_list(self):
         """Test the list of specialists."""
-        response= self.client.get(f"/specialists/?role=cu:specialist:{self.cu_specialist1.id}")
+        url = reverse('specialist-list')
+        # Add role parameter for the requesting specialist
+        role = f"hku:specialist:{self.hku_specialist.id}"
+        url_with_role = f"{url}?role={role}"
+        response = self.client.get(url_with_role)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['results']), 2)
-        self.assertEqual(response.data['results'][0]['name'], self.cu_specialist1.name)
-        self.assertEqual(response.data['results'][0]['university'], self.cu_specialist1.university.code)
-        self.assertEqual(response.data['results'][1]['name'], self.cu_specialist2.name)
-        self.assertEqual(response.data['results'][1]['university'], self.cu_specialist2.university.code)
-        self.assertEqual(response.data['results'][0]['id'], self.cu_specialist1.id)
-        self.assertEqual(response.data['results'][1]['id'], self.cu_specialist2.id)
-    
+        # Check response data structure (direct list, not paginated)
+        self.assertIsInstance(response.data, list)
+        # Specialist sees only specialists from their own uni
+        self.assertEqual(len(response.data), 1) 
+        # Check data of the one specialist they can see (self.hku_spec1)
+        spec_data = response.data[0]
+        self.assertEqual(spec_data['id'], self.hku_specialist.id)
+        self.assertEqual(spec_data['name'], self.hku_specialist.name)
+        self.assertEqual(spec_data['university'], self.hku.code)
+
     def test_retrieve(self):
         """Test the retrieve of a specialist."""
         response = self.client.get(f"/specialists/{self.cu_specialist2.id}/?role=cu:specialist:{self.cu_specialist1.id}")

@@ -23,6 +23,7 @@ wheels/
 # Django
 *.log
 local_settings.py
+db.sqlite3 # Ignore the main development database file
 db.sqlite3.backup  # Keep backup files excluded from git
 db.sqlite3-journal
 media/
@@ -31,7 +32,6 @@ media/
 **/db.sqlite3.backup
 
 # Static files
-/static/
 /staticfiles/
 
 # Virtual environment
@@ -78,4 +78,8 @@ docs/_build/
 
 # Environments
 .env
-.venv 
+.venv
+
+# PDM cache/config
+.pdm-build/
+.pdm.toml 

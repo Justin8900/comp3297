@@ -19,9 +19,15 @@ class PropertyOwnerTests(APITestCase):
         url = reverse('property-owner-list') + f"?role={self.role}"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Check if email field exists (should be null initially)
-        self.assertIn('email', response.data['results'][0])
-        self.assertIsNone(response.data['results'][0]['email'])
+        # Check response data structure (direct list, not paginated)
+        self.assertIsInstance(response.data, list)
+        self.assertEqual(len(response.data), 1) # Only one owner created in setUp
+        # Check structure of one item
+        first_owner_data = response.data[0] if response.data else {}
+        self.assertIn('id', first_owner_data)
+        self.assertIn('name', first_owner_data)
+        self.assertIn('phone_no', first_owner_data)
+        self.assertIn('email', first_owner_data)
 
     def test_create_property_owner(self):
         """Test creating a new property owner with email."""

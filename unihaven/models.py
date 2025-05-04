@@ -2,12 +2,7 @@ from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib.auth.models import User
 from django.db.models import UniqueConstraint
-from .utils.notifications import send_reservation_notification, send_member_cancellation_notification
 import logging
-from django.dispatch import receiver
-from django.db.models.signals import post_save
-from unihaven.utils.notifications import send_specialist_notification
-from rest_framework import serializers
 
 # Create your models here.
 class University(models.Model):
@@ -174,7 +169,6 @@ class Accommodation(models.Model):
             return True
         else:
             logger.warning(f"Geocoding failed for Acc ID {self.id} using {source_field}: '{address_to_geocode}'")
-            # Optionally clear fields on failure
             return False
     
     @property
@@ -207,60 +201,8 @@ class Member(models.Model):
     phone_number = models.CharField(max_length=20, blank=True, null=True) # Adjust max_length as needed
     email = models.EmailField(max_length=254, blank=True, null=True) # Standard max length for emails
 
-    # Add methods directly here if they are common
-    # e.g., searchAccommodation, reserveAccommodation, etc.
-    # Remember to adapt them if they relied on specific subclass logic before
-
     def __str__(self):
         return f"{self.name} ({self.uid} - {self.university.code})"
-
-    def searchAccommodation(self, **filters):
-        # Search for accommodations available at the member's university
-        return Accommodation.objects.filter(available_at_universities=self.university, **filters)
-
-    def reserveAccommodation(self, accommodation, start_date, end_date):
-        # Reserve an accommodation, ensuring it's available at the member's university
-        if not accommodation.available_at_universities.filter(pk=self.university.pk).exists():
-             raise ValueError(f"Accommodation {accommodation.id} is not available at {self.university.code}")
-        # The view layer should handle overlap checks before calling this
-        reservation = Reservation.objects.create(
-            member=self,
-            accommodation=accommodation,
-            start_date=start_date,
-            end_date=end_date,
-            university=self.university,
-            status='pending'
-        )
-        return reservation
-
-    def cancelReservation(self, reservation):
-        # Cancel a specific reservation belonging to this member
-        if reservation.member != self:
-            raise PermissionError("Member can only cancel their own reservations.")
-        if reservation.status in ['cancelled', 'completed']:
-             return reservation # Already cancelled or completed
-        return reservation.cancel(user_type='member')
-
-    def rateAccommodation(self, reservation, score, comment=None):
-        # Rate an accommodation based on a completed reservation
-        if reservation.member != self:
-            raise PermissionError("Member can only rate their own reservations.")
-        if reservation.status != 'completed':
-            raise ValueError("Can only rate completed reservations.")
-        if hasattr(reservation, 'rating'):
-             raise ValueError("This reservation has already been rated.")
-        rating = Rating.objects.create(
-            reservation=reservation,
-            score=score,
-            comment=comment
-        )
-        return rating
-
-    def get_active_reservations_count(self):
-        # Get count of active reservations
-        return self.reservations.filter(
-            status__in=['pending', 'confirmed']
-        ).count()
 
 logger = logging.getLogger('django')
 class Reservation(models.Model):
@@ -311,37 +253,9 @@ class Reservation(models.Model):
                  member_instance = Member.objects.get(pk=self.member_id)
                  self.university = member_instance.university
              except Member.DoesNotExist:
-                 # Handle error: member must exist to save reservation
-                 # Or rely on validation elsewhere to ensure member_id is valid
                  logger.error(f"Attempted to save Reservation with invalid member_id: {self.member_id}")
-                 # Depending on desired behavior, raise error or skip setting uni
                  pass 
         super().save(*args, **kwargs)
-
-    def cancel(self, user_type='system'):
-        """
-        Cancel the reservation and trigger notification logic.
-
-        Args:
-            user_type (str): The type of user/actor cancelling ('member', 'specialist', 'system').
-
-        Returns:
-            Reservation: The updated reservation instance.
-        """
-        if self.status == 'cancelled':
-             return self
-
-        old_status = self.status
-        cancelled_by_user = user_type # Store original requested user type
-        self.status = 'cancelled'
-        self.cancelled_by = cancelled_by_user
-        self.save()
-
-        logger.info(f"Reservation #{self.id} for {self.university.code if self.university else 'Unknown University'} has been cancelled by {cancelled_by_user}.")
-        
-        # --- Removed Direct Notification Calls (Moved to ViewSet.perform_destroy) --- 
-                
-        return self
 
 class Rating(models.Model):
     """

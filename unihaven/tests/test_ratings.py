@@ -3,7 +3,6 @@ from django.contrib.auth.models import User
 from rest_framework import status
 from rest_framework.test import APITestCase
 from ..models import University, PropertyOwner, Member, Specialist, Accommodation, Reservation, Rating
-from ..serializers import RatingSerializer # Ensure this import exists
 from unittest.mock import patch
 
 class RatingCreateTests(APITestCase):
@@ -63,7 +62,6 @@ class RatingCreateTests(APITestCase):
     def test_member_can_rate_own_completed_reservation(self):
         """Verify a member can rate their own completed reservation."""
         role = f"hkust:member:{self.hkust_member.uid}"
-        # Assumes router basename 'rating'
         url = reverse('rating-list') # POST to list endpoint
         url_with_role = f"{url}?role={role}"
         data = {
@@ -76,10 +74,6 @@ class RatingCreateTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(response.data['score'], 4)
         self.assertEqual(response.data['comment'], "Good stay!")
-        # Use response data or fetch member from DB if serializer includes it
-        # Assuming RatingSerializer includes member_uid or similar
-        # Adjust assertion based on your RatingSerializer
-        # self.assertEqual(response.data['member_uid'], self.hkust_member.uid) # Example if serializer returns uid
 
         # Verify rating exists in DB linked correctly
         self.assertTrue(Rating.objects.filter(reservation=self.res_hkust_completed, reservation__member=self.hkust_member).exists())
@@ -135,14 +129,13 @@ class RatingCreateTests(APITestCase):
         self.client.post(url_with_role, data, format='json')
 
         response = self.client.get(url_with_role)
-        # print("Ratings in DB:", Rating.objects.filter(reservation=self.res_cu_completed, reservation__member=self.cu_member).exists())
-        # print("GET response:", response.status_code, response.data)
-        # print("Ratings returned (results):", response.data.get('results', []))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['results']), 1, f"Expected 1 rating, got {len(response.data['results'])}: {response.data['results']}")
-        self.assertEqual(response.data['results'][0]['score'], 4)
-        self.assertEqual(response.data['results'][0]['comment'], "Good stay!")
-        self.assertEqual(response.data['results'][0]['member_uid'], self.cu_member.uid)
+        self.assertIsInstance(response.data, list) # No pagination
+        self.assertEqual(len(response.data), 1, f"Expected 1 rating, got {len(response.data)}: {response.data}")
+        if response.data:
+            self.assertEqual(response.data[0]['score'], 4)
+            self.assertEqual(response.data[0]['comment'], "Good stay!")
+            self.assertEqual(response.data[0]['member_uid'], self.cu_member.uid)
     
     def test_delete_rating_specialist(self):
         """Verify that a specialist can delete a rating, but a member cannot."""
@@ -231,12 +224,7 @@ class RatingVisibilityBaseTestCase(APITestCase):
         cls.rating_hku = Rating.objects.create(reservation=cls.res_hku, score=5, comment='HKU Rating')
 
 # Remove inheritance from RatingCreateTests
-class RatingVisibilityTests(RatingVisibilityBaseTestCase): # Use new base class
-
-    # Remove the conflicting setUpTestData method from this class
-    # @classmethod
-    # def setUpTestData(cls):
-    #     super().setUpTestData() ... 
+class RatingVisibilityTests(RatingVisibilityBaseTestCase): 
 
     def test_member_can_list_all_own_uni_ratings(self):
         """Verify a member sees all ratings from their university."""
@@ -244,7 +232,8 @@ class RatingVisibilityTests(RatingVisibilityBaseTestCase): # Use new base class
         url = reverse('rating-list') + f"?role={role}"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        rating_ids = {r['id'] for r in response.data['results']}
+        self.assertIsInstance(response.data, list)
+        rating_ids = {r['id'] for r in response.data}
         self.assertIn(self.rating_cu_1.id, rating_ids) # Should see CU rating 1
         self.assertIn(self.rating_cu_2.id, rating_ids) # Should see CU rating 2
         self.assertNotIn(self.rating_hku.id, rating_ids) # Should not see HKU rating
@@ -257,7 +246,8 @@ class RatingVisibilityTests(RatingVisibilityBaseTestCase): # Use new base class
         response = self.client.get(url)
         # Expect 200 OK, but the list should only contain HKU ratings
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        rating_ids = {r['id'] for r in response.data['results']}
+        self.assertIsInstance(response.data, list) # No pagination
+        rating_ids = {r['id'] for r in response.data}
         self.assertIn(self.rating_hku.id, rating_ids)
         self.assertEqual(len(rating_ids), 1) # Should only see the 1 HKU rating
 
@@ -267,7 +257,8 @@ class RatingVisibilityTests(RatingVisibilityBaseTestCase): # Use new base class
         url = reverse('rating-list') + f"?role={role}&accommodation_id={self.acc_cu_1.id}" # Filter for acc_cu_1
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        rating_ids = {r['id'] for r in response.data['results']}
+        self.assertIsInstance(response.data, list)
+        rating_ids = {r['id'] for r in response.data}
         self.assertIn(self.rating_cu_1.id, rating_ids) # Rating for acc_cu_1
         self.assertNotIn(self.rating_cu_2.id, rating_ids) # Rating for acc_cu_2
         self.assertEqual(len(rating_ids), 1)
@@ -320,6 +311,3 @@ class RatingVisibilityTests(RatingVisibilityBaseTestCase): # Use new base class
         response_specialist = self.client.delete(delete_url_specialist)
         self.assertEqual(response_specialist.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Rating.objects.filter(id=rating_to_delete.id).exists(), "Rating should be deleted by specialist")
-
-# Note: Original RatingCreateTests might need adjustments if its setup relied on specifics now changed
-# or if it needs to run independently.

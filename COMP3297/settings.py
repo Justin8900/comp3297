@@ -32,7 +32,6 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     'unihaven.apps.UnihavenConfig',
-    # 'django.contrib.admin', # Commented out for demo API
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',

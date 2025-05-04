@@ -1,14 +1,10 @@
-from django.shortcuts import render
 from django.views.generic import ListView
-from django.db.models import Q, Avg
 from rest_framework import viewsets, status, filters, permissions
 from rest_framework.response import Response
 from rest_framework.decorators import action, api_view, permission_classes, renderer_classes
 from rest_framework.renderers import TemplateHTMLRenderer, JSONRenderer
 from datetime import datetime
-from decimal import Decimal
-from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiExample
-from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
 from rest_framework import serializers
 from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
 from .models import (
@@ -23,7 +19,6 @@ from .serializers import (
 )
 from .permissions import (
     IsSpecialist,
-    IsMember,
     IsMemberOrSpecialist,
     IsSpecialistManagingAccommodation,
     CanAccessMemberObject,
@@ -36,7 +31,12 @@ from .permissions import (
     get_role_info_from_request # Updated helper function
 )
 from .utils.geocoding import geocode_address, calculate_distance
-from .utils.notifications import send_reservation_notification, send_member_cancellation_notification
+from .utils.notifications import (
+    notify_specialists_of_creation, notify_specialists_of_cancellation, 
+    notify_specialists_of_update,
+    send_member_cancellation_notification, send_member_creation_notification, 
+    send_member_update_notification 
+)
 import math
 import logging # Added for logging
 
@@ -47,11 +47,6 @@ def get_role_or_403(request):
     uni_code, role_type, role_id = get_role_info_from_request(request)
     if not uni_code or not role_type:
         raise PermissionDenied("Invalid or missing role information in query parameters.")
-    # Optionally fetch University object here if needed frequently, handle ObjectDoesNotExist
-    # try:
-    #     university = University.objects.get(code__iexact=uni_code)
-    # except University.DoesNotExist:
-    #     raise PermissionDenied(f"University code '{uni_code}' not found.")
     return uni_code, role_type, role_id #, university
 
 # API Views
@@ -398,14 +393,10 @@ class AccommodationViewSet(viewsets.ModelViewSet):
                     current_uni_codes = set(u.code.lower() for u in instance.available_at_universities.all())
                     # Get requested codes directly from raw request data
                     requested_uni_codes_from_data = set(code.lower() for code in request.data.get('available_at_universities', []))
-                    
-                    # logger.info(f"[Acc {instance.id} PATCH] Checking Uni Add: Requester='{req_uni_code}', Current='{current_uni_codes}', Requested Raw='{requested_uni_codes_from_data}'")
 
                     for code_to_set in requested_uni_codes_from_data:
                         is_other_uni = code_to_set != req_uni_code.lower()
                         is_newly_added = code_to_set not in current_uni_codes
-                        
-                        # logger.info(f"[Acc {instance.id} PATCH] Checking code '{code_to_set}': is_other={is_other_uni}, is_new={is_newly_added}")
 
                         if is_newly_added and is_other_uni:
                             raise PermissionDenied(
@@ -789,66 +780,18 @@ class ReservationViewSet(viewsets.ModelViewSet):
         if not accommodation.available_at_universities.filter(pk=member.university.pk).exists():
              raise serializers.ValidationError(f"Accommodation {accommodation.id} is not available at university {member.university.code}.")
 
-        # Check for overlapping reservations (basic check, might need more robust logic)
-        start_date = serializer.validated_data['start_date']
-        end_date = serializer.validated_data['end_date']
-        overlaps = Reservation.objects.filter(
-            accommodation=accommodation,
-            status__in=['pending', 'confirmed'],
-            start_date__lt=end_date,
-            end_date__gt=start_date
-        ).exists()
-        if overlaps:
-             raise serializers.ValidationError("Accommodation is not available for the selected dates due to an overlapping reservation.")
-
         # Save with the correct member and university
         serializer.save(member=member, university=member.university) 
         # post_save signal in models.py handles notification
 
-        # --- Send Notification for New Reservation ---
-        instance = serializer.instance # Get the created instance
-        subject = f"New Pending Reservation at {instance.university.code}: #{instance.id}"
-        message_template = f"""
-        A new reservation requires confirmation:
-        
-        Reservation ID: {{id}}
-        Member: {{member_name}} ({{member_uid}})
-        Accommodation: {{accommodation}}
-        Check-in: {{start_date}}
-        Check-out: {{end_date}}
-        Status: {{status}}
-        
-        Please review and confirm or cancel this reservation.
-        
-        Regards,
-        The UniHaven Team
-        """
-        send_reservation_notification(instance, subject, message_template)
-        # --- End Notification --- 
-
-    def perform_destroy(self, instance):
-        # This method is kept but will be blocked by the destroy method override
-        # Original notification logic can be moved or adapted for updates
-        logger.warning(f"Attempted DELETE on Reservation {instance.id}, which is now disallowed. Cancellation handled via PATCH/PUT.")
-        # Keep notification logic here for reference or potential reuse if needed elsewhere
+        # --- Call Specific Notifications --- # Modified
         try:
-            uni_code, role_type, role_id = get_role_or_403(self.request)
-            cancelling_user_type = role_type # member or specialist
-        except PermissionDenied:
-            cancelling_user_type = 'system' # Or handle error appropriately
-        
-        # --- Reference Notification Logic (moved to perform_update) ---
-        # subject_spec = f"Reservation Cancelled at {instance.university.code}: #{instance.id}"
-        # message_spec = f"""..."""
-        # send_reservation_notification(instance, subject_spec, message_spec)
-        # if cancelling_user_type != 'member':
-        #     if hasattr(instance, 'member') and instance.member:
-        #         send_member_cancellation_notification(instance)
-        # --- End Reference --- 
-
-        # Instead of calling cancel or delete, we prevent the action
-        # instance.cancel(user_type=cancelling_user_type)
-        pass # Do nothing here, destroy override handles prevention
+            notify_specialists_of_creation(serializer.instance)
+            send_member_creation_notification(serializer.instance)
+        except Exception as e:
+            # Log error, but don't fail the request just because notification failed
+            logger.error(f"Error sending creation notifications for Res {serializer.instance.id}: {e}")
+        # --- End Specific Notifications --- # Modified
 
     def destroy(self, request, *args, **kwargs):
         # Override destroy action to explicitly disallow DELETE method
@@ -887,38 +830,46 @@ class ReservationViewSet(viewsets.ModelViewSet):
         # Set cancelled_by and trigger notifications
         serializer.validated_data['cancelled_by'] = cancelling_user_type
         instance.cancelled_by = cancelling_user_type
-        # --- Trigger Cancellation Notifications --- 
-        subject_spec = f"Reservation Cancelled at {instance.university.code}: #{instance.id}"
-        message_spec = f"""
-The following reservation has been cancelled:
 
-Reservation ID: {{id}}
-Accommodation: {{accommodation}}
-Member: {{member_name}} ({{member_uid}})
-Cancelled by: {cancelling_user_type}
-
-Regards,
-The UniHaven Team
-        """
-        # Ensure instance has relations loaded for notification context
         try:
              # Select related fields needed for notification template
              instance_for_noti = Reservation.objects.select_related(
                  'member', 'accommodation', 'university'
              ).get(pk=instance.pk)
-             send_reservation_notification(instance_for_noti, subject_spec, message_spec)
+             # send_reservation_notification(instance_for_noti, subject_spec, message_spec)
+             
+             # Call specific notifications
+             notify_specialists_of_cancellation(instance_for_noti)
 
-             if cancelling_user_type != 'member':
-                 if hasattr(instance_for_noti, 'member') and instance_for_noti.member:
-                     send_member_cancellation_notification(instance_for_noti)
-                 else:
-                     logger.warning(f"Cannot send member cancellation email for Res {instance.id} - member data missing.")
+             if hasattr(instance_for_noti, 'member') and instance_for_noti.member:
+                 send_member_cancellation_notification(instance_for_noti)
+             else:
+                 logger.warning(f"Cannot send member cancellation email for Res {instance.id} - member data missing.")
         except Exception as e:
             logger.error(f"Error sending cancellation notification for Res {instance.id}: {e}")
         # --- End Notifications ---
 
         # Proceed with the save operation for all valid updates
         serializer.save()
+
+        # --- Notifications for Confirmed/Completed --- # Modified block
+        if new_status in ['confirmed', 'completed'] and old_status != new_status:
+            logger.info(f"Reservation {instance.id} status changing to '{new_status}' via {self.request.method}. Triggering notifications.")
+
+            try:
+                 # Ensure instance has relations loaded for notification context
+                 instance_for_noti = Reservation.objects.select_related(
+                     'member', 'accommodation', 'university'
+                 ).get(pk=instance.pk)
+                 # send_reservation_notification(instance_for_noti, subject_spec, message_spec_template)
+                 
+                 # Call specific notifications
+                 notify_specialists_of_update(instance_for_noti, new_status) 
+                 # Notify Member
+                 send_member_update_notification(instance_for_noti, old_status)
+            except Exception as e:
+                logger.error(f"Error sending {new_status} notification for Res {instance.id}: {e}")
+        # --- End Confirmed/Completed Notifications --- # Modified block
 
 
 # --- Rating ViewSet ---
@@ -932,7 +883,6 @@ The UniHaven Team
             OpenApiParameter(name="reservation_id", description="Filter by reservation ID", required=False, type=int),
             OpenApiParameter(name="accommodation_id", description="Filter by accommodation ID", required=False, type=int),
             OpenApiParameter(name="member_id", description="Filter by member UID (Specialists only)", required=False, type=str)
-            # Parameters 'page', 'search', 'ordering' are omitted here, so they won't appear in the schema for list
         ]
     ),
      create=extend_schema( 
@@ -987,7 +937,7 @@ class RatingViewSet(viewsets.ModelViewSet):
             permission_classes_list = [CanAccessRatingObject]
         elif self.action == 'destroy':
              # Allow specialists from the rating's uni to delete
-             permission_classes_list = [CanAccessRatingObject] # Re-use, but need role check inside? No, checks uni match
+             permission_classes_list = [CanAccessRatingObject]
              # Add check inside destroy if needed: if role != specialist: raise PermissionDenied
         elif self.action in ['update', 'partial_update']:
              # Disallow updates for now, or use IsAdminUser
@@ -1032,9 +982,6 @@ class RatingViewSet(viewsets.ModelViewSet):
             member_filter = self.request.query_params.get('member_id')
             if member_filter:
                  queryset = queryset.filter(reservation__member__uid=member_filter)
-        # else: (role_type == 'member')
-            # Removed the filter: queryset = queryset.filter(reservation__member__uid=role_id)
-            # Now members see all ratings from their university
 
         return queryset
 
@@ -1083,39 +1030,3 @@ class RatingViewSet(viewsets.ModelViewSet):
          
          # If specialist check passes (and CanAccessRatingObject check passed), proceed
          super().perform_destroy(instance)
-
-
-# --- Remove old manual actions if they are now handled by standard methods ---
-# e.g., create_reservation, cancel, create_rating might be removable if standard
-# create/destroy/custom actions cover them with new permissions.
-# Review ReservationViewSet actions:
-# - create_reservation -> Replaced by standard create + perform_create logic
-# - cancel -> Refactored using custom action and CanAccessReservationObject
-# Review RatingViewSet actions:
-# - create_rating -> Replaced by standard create + perform_create logic
-
-
-# --- HTML Views (Keep or Remove?) ---
-# These might need updating or removal depending on project scope
-
-class AccommodationListView(ListView):
-    model = Accommodation
-    template_name = 'unihaven/accommodation_list.html' 
-    context_object_name = 'accommodations'
-
-    def get_queryset(self):
-        # Basic example, needs role/university filtering based on session/other auth
-        return Accommodation.objects.order_by('?')[:10] # Random 10 for example
-
-# Render basic search page
-@api_view(['GET'])
-@renderer_classes([TemplateHTMLRenderer, JSONRenderer])
-@permission_classes([permissions.AllowAny]) # Or use appropriate role check
-def accommodation_search_view(request):
-    # This likely needs role checking and context passing for a real app
-    context = {'some_key': 'some_value'} 
-    # If HTML requested, render template
-    if request.accepted_renderer.format == 'html':
-        return Response(context, template_name='unihaven/accommodation_search.html')
-    # Otherwise, maybe return search options as JSON?
-    return Response({"message": "Use the API endpoint /accommodations/search/ for JSON search."})

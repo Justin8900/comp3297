@@ -127,8 +127,6 @@ class AccommodationSerializer(serializers.ModelSerializer):
         if start and end and end < start:
             raise serializers.ValidationError({"available_until": "End date must be after start date."})
 
-        # Log validated data BEFORE returning from serializer validate
-        # logger.info(f"[Serializer Validate] Returning validated data: {data}") 
         return data
 
 
@@ -192,8 +190,6 @@ class ReservationSerializer(serializers.ModelSerializer):
             'university', 'member', 'accommodation_details', 'rating', 
             'accommodation', 'member_uid' # write-only creation fields
         ]
-        # Allow status and cancelled_by to be updated via PUT/PATCH.
-        # Keep other related fields read-only for display.
         read_only_fields = [
             'id', 
             'university', 
@@ -201,7 +197,6 @@ class ReservationSerializer(serializers.ModelSerializer):
             'accommodation_details', 
             'rating'
         ]
-        # Note: member_uid and accommodation are write_only for creation
 
     def validate(self, data):
         """Validate dates and check for overlaps."""
@@ -233,20 +228,15 @@ class ReservationSerializer(serializers.ModelSerializer):
                     "Accommodation is not available for the selected dates due to an existing reservation."
                 )
 
-        # Member UID validation is handled in the view's perform_create
+        # 3. Check if reservation dates are within Accommodation's availability window
+        if start_date and end_date and accommodation: 
+            if accommodation.available_from and start_date < accommodation.available_from:
+                 raise serializers.ValidationError(
+                     {"start_date": f"Accommodation is not available until {accommodation.available_from}."}
+                 )
+            if accommodation.available_until and end_date > accommodation.available_until:
+                 raise serializers.ValidationError(
+                     {"end_date": f"Accommodation is only available until {accommodation.available_until}."}
+                 )
         
         return data
-
-# --- Utility Serializers ---
-
-class AccommodationSearchSerializer(serializers.Serializer):
-    """Serializer for accommodation search parameters.
-    Needs review/update if search endpoint is reimplemented with new models/filters."""
-    type = serializers.CharField(required=False, help_text="Filter by accommodation type")
-    min_beds = serializers.IntegerField(required=False, help_text="Filter by minimum number of beds")
-    # ... (add/update other fields as needed)
-    max_price = serializers.FloatField(required=False, help_text="Filter by maximum price")
-    available_from = serializers.DateField(required=False, help_text="Filter by availability start date (YYYY-MM-DD)")
-    available_until = serializers.DateField(required=False, help_text="Filter by availability end date (YYYY-MM-DD)")
-    # distance_from might need adjustment based on geocoding implementation
-    # university_code = serializers.CharField(required=False) # Add filter by university? (Handled by view queryset now)
